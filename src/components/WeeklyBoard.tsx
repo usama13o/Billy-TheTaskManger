@@ -93,7 +93,7 @@ const DayColumnComponent: React.FC<DayColumnProps> = ({
   onEditTask
 }) => {
   const { setNodeRef } = useDroppable({
-    id: day.id
+    id: `day|${day.id}`
   });
 
   const isToday = day.date === new Date().toISOString().split('T')[0];
