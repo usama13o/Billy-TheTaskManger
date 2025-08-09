@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useTasks } from './hooks/useTasks';
 import { BrainDump } from './components/BrainDump';
 import { WeeklyBoard } from './components/WeeklyBoard';
@@ -62,33 +62,16 @@ function App() {
     const taskId = active.id as string;
     const overId = over.id as string;
 
-    // Parse time from calendar drop zones
-    const parseTimeFromDropId = (dropId: string) => {
-      if (dropId.includes('-')) {
-        const parts = dropId.split('-');
-        if (parts.length >= 2) {
-          const dayId = parts[0];
-          const time = parts.slice(1).join('-'); // Handle cases like "2024-01-01-09:00"
-          return { dayId, time };
-        }
-      }
-      return { dayId: dropId, time: undefined };
-    };
-
-    // Handle dropping to brain dump
-    if (overId === 'brain-dump') {
+    // slot|dayId|HH:00 droppable id format
+    if (overId.startsWith('slot|')) {
+      const [, dayId, time] = overId.split('|');
+      if (dayId) moveTask(taskId, dayId, time);
+    } else if (overId === 'brain-dump') {
+      // Return to brain dump (unschedule)
       moveTask(taskId, undefined, undefined);
-    }
-    // Handle dropping to day columns
-    else if (weekDays.some(day => day.id === overId)) {
-      moveTask(taskId, overId, undefined);
-    }
-    // Handle dropping to calendar time slots with proper time parsing
-    else {
-      const { dayId, time } = parseTimeFromDropId(overId);
-      if (weekDays.some(day => day.id === dayId)) {
-        moveTask(taskId, dayId, time);
-      }
+    } else if (overId.startsWith('day|')) {
+      const [, dayId] = overId.split('|');
+      moveTask(taskId, dayId, undefined);
     }
 
     setDraggedTask(null);
@@ -127,12 +110,12 @@ function App() {
           />
 
           {viewMode === 'board' ? (
-            <WeeklyBoard
-              days={weekDays}
-              onAddTask={addTask}
-              onToggleComplete={handleToggleComplete}
-              onEditTask={setEditingTask}
-            />
+             <WeeklyBoard
+               days={weekDays}
+               onAddTask={addTask}
+               onToggleComplete={handleToggleComplete}
+               onEditTask={setEditingTask}
+             />
           ) : (
             <CalendarView
               days={weekDays}

@@ -2,7 +2,6 @@ import React from 'react';
 import { DayColumn, Task, TimeSlot } from '../types';
 import { TaskCard } from './TaskCard';
 import { useDroppable } from '@dnd-kit/core';
-import { format } from 'date-fns';
 import { Clock, Calendar as CalendarIcon } from 'lucide-react';
 
 interface CalendarViewProps {
@@ -21,31 +20,23 @@ interface CalendarTimeSlotProps {
   onEditTask: (task: Task) => void;
 }
 
-const CalendarTimeSlotComponent: React.FC<CalendarTimeSlotProps> = ({
-  dayId,
-  time,
-  tasks,
-  onToggleComplete,
-  onEditTask
-}) => {
-  const { setNodeRef } = useDroppable({
-    id: `${dayId}-${time}`
-  });
-
+const CalendarTimeSlotComponent: React.FC<CalendarTimeSlotProps> = ({ dayId, time, tasks, onToggleComplete, onEditTask }) => {
+  const { setNodeRef, isOver } = useDroppable({ id: `slot|${dayId}|${time}` });
   return (
-    <div 
+    <div
       ref={setNodeRef}
-      className="flex-1 min-w-[200px] min-h-[60px] p-2 border-r border-gray-700 hover:bg-gray-800/50 transition-colors"
+      className={`flex-1 min-w-[180px] min-h-[52px] p-1.5 border-r border-gray-800 transition-colors ${
+        isOver ? 'bg-green-900/40' : 'hover:bg-gray-800/40'
+      }`}
     >
       <div className="space-y-1">
-        {tasks.map((task) => (
-          <div key={task.id} className="scale-90 origin-top-left">
-            <TaskCard
-              task={task}
-              onToggleComplete={onToggleComplete}
-              onEdit={onEditTask}
-            />
-          </div>
+        {tasks.map(task => (
+          <TaskCard
+            key={task.id}
+            task={task}
+            onToggleComplete={onToggleComplete}
+            onEdit={onEditTask}
+          />
         ))}
       </div>
     </div>
@@ -67,9 +58,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     return { time, hour, displayTime };
   });
 
-  const selectedDay = days.find(day => day.date === selectedDate);
+  const selectedDay = days.find(d => d.date === selectedDate);
   const selectedDayTasks = selectedDay?.tasks || [];
-  const unscheduledTasks = selectedDayTasks.filter(task => !task.scheduledTime);
+  const unscheduledTasks = selectedDayTasks.filter(t => !t.scheduledTime);
 
   return (
     <div className="flex-1 bg-gray-900 flex overflow-hidden">
@@ -79,31 +70,22 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           {/* Header */}
           <div className="sticky top-0 bg-gray-900 border-b border-gray-700 z-10">
             <div className="flex">
-              <div className="w-16 flex-shrink-0 bg-gray-900"></div>
-              {days.map((day) => {
+              <div className="w-14 flex-shrink-0 bg-gray-900"></div>
+              {days.map(day => {
                 const isToday = day.date === new Date().toISOString().split('T')[0];
                 const isSelected = day.date === selectedDate;
                 return (
-                  <div 
-                    key={day.id} 
+                  <div
+                    key={day.id}
                     onClick={() => onDateSelect(day.date)}
-                    className={`flex-1 min-w-[200px] p-4 text-center border-r border-gray-700 cursor-pointer transition-colors ${
-                      isSelected ? 'bg-green-500/20' : 
-                      isToday ? 'bg-green-500/10' : 'hover:bg-gray-800'
+                    className={`flex-1 min-w-[180px] p-3 text-center border-r border-gray-800 cursor-pointer select-none transition-colors ${
+                      isSelected ? 'bg-green-500/15' : isToday ? 'bg-green-500/5' : 'hover:bg-gray-800/60'
                     }`}
                   >
-                    <div className={`font-semibold ${
-                      isSelected ? 'text-green-300' :
-                      isToday ? 'text-green-400' : 'text-white'
-                    }`}>
-                      {day.dayName}
-                    </div>
-                    {isToday && (
-                      <div className="text-xs text-green-400 mt-1">Today</div>
-                    )}
-                    {isSelected && !isToday && (
-                      <div className="text-xs text-green-300 mt-1">Selected</div>
-                    )}
+                    <div className={`text-sm font-medium ${
+                      isSelected ? 'text-green-300' : isToday ? 'text-green-400' : 'text-gray-100'
+                    }`}>{day.dayName}</div>
+                    {isToday && <div className="text-[10px] text-green-400 mt-0.5">Today</div>}
                   </div>
                 );
               })}
@@ -111,21 +93,18 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           </div>
 
           {/* Time slots */}
-          <div className="relative">
-            {timeSlots.map(({ time, hour, displayTime }) => (
+          <div>
+            {timeSlots.map(({ time, displayTime }) => (
               <div key={time} className="flex border-b border-gray-800">
-                <div className="w-16 flex-shrink-0 p-2 text-xs text-gray-400 text-right border-r border-gray-700">
+                <div className="w-14 flex-shrink-0 p-1.5 pr-2 text-[10px] md:text-xs text-gray-500 text-right border-r border-gray-800">
                   {displayTime}
                 </div>
-                
-                {days.map((day) => (
+                {days.map(day => (
                   <CalendarTimeSlotComponent
-                    key={`${day.id}-${time}`}
+                    key={`slot-${day.id}-${time}`}
                     dayId={day.id}
                     time={time}
-                    tasks={day.tasks.filter(task => 
-                      task.scheduledTime?.startsWith(time.split(':')[0])
-                    )}
+                    tasks={day.tasks.filter(t => t.scheduledTime === time)}
                     onToggleComplete={onToggleComplete}
                     onEditTask={onEditTask}
                   />
@@ -136,23 +115,20 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         </div>
       </div>
 
-      {/* Day Tasks Sidebar */}
-      <div className="w-80 bg-gray-900 border-l border-gray-700 flex flex-col">
-        <div className="p-4 border-b border-gray-700">
-          <div className="flex items-center gap-2 mb-3">
+      {/* Side Panel for Selected Day */}
+      <div className="w-80 bg-gray-900 border-l border-gray-800 flex flex-col">
+        <div className="p-4 border-b border-gray-800">
+          <div className="flex items-center gap-2 mb-2">
             <CalendarIcon className="w-5 h-5 text-green-400" />
-            <h2 className="text-lg font-semibold text-white">
+            <h2 className="text-base font-semibold text-gray-100">
               {selectedDay ? selectedDay.dayName : 'Select a Day'}
             </h2>
           </div>
-          
           {selectedDay && (
-            <div className="text-sm text-gray-400">
-              {selectedDayTasks.length} task{selectedDayTasks.length !== 1 ? 's' : ''} scheduled
+            <div className="text-xs text-gray-400">
+              {selectedDayTasks.length} task{selectedDayTasks.length !== 1 ? 's' : ''}
               {unscheduledTasks.length > 0 && (
-                <span className="text-yellow-400 ml-2">
-                  ({unscheduledTasks.length} unscheduled)
-                </span>
+                <span className="ml-2 text-yellow-400">({unscheduledTasks.length} unscheduled)</span>
               )}
             </div>
           )}
@@ -160,16 +136,15 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
         <div className="flex-1 overflow-y-auto">
           {selectedDay ? (
-            <div className="p-4 space-y-4">
-              {/* Unscheduled Tasks */}
+            <div className="p-4 space-y-6">
               {unscheduledTasks.length > 0 && (
                 <div>
-                  <h3 className="text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
-                    <Clock className="w-4 h-4" />
-                    Unscheduled Tasks
+                  <h3 className="text-xs font-medium text-gray-300 mb-2 flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    Unscheduled
                   </h3>
                   <div className="space-y-2">
-                    {unscheduledTasks.map((task) => (
+                    {unscheduledTasks.map(task => (
                       <TaskCard
                         key={task.id}
                         task={task}
@@ -181,25 +156,18 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </div>
               )}
 
-              {/* Scheduled Tasks */}
-              {selectedDayTasks.filter(task => task.scheduledTime).length > 0 && (
+              {selectedDayTasks.filter(t => t.scheduledTime).length > 0 && (
                 <div>
-                  <h3 className="text-sm font-medium text-gray-300 mb-2">
-                    Scheduled Tasks
-                  </h3>
+                  <h3 className="text-xs font-medium text-gray-300 mb-2">Scheduled</h3>
                   <div className="space-y-2">
                     {selectedDayTasks
-                      .filter(task => task.scheduledTime)
+                      .filter(t => t.scheduledTime)
                       .sort((a, b) => (a.scheduledTime || '').localeCompare(b.scheduledTime || ''))
-                      .map((task) => (
-                        <div key={task.id} className="bg-gray-800 rounded-lg p-3 border-l-4 border-green-500">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs text-green-400 font-medium">
-                              {task.scheduledTime}
-                            </span>
-                            <span className="text-xs text-gray-400">
-                              {task.timeEstimate}m
-                            </span>
+                      .map(task => (
+                        <div key={task.id} className="bg-gray-800 rounded-lg p-2 border-l-4 border-green-500">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] text-green-400 font-medium">{task.scheduledTime}</span>
+                            <span className="text-[10px] text-gray-400">{task.timeEstimate}m</span>
                           </div>
                           <TaskCard
                             task={task}
@@ -213,16 +181,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               )}
 
               {selectedDayTasks.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  <CalendarIcon className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>No tasks scheduled</p>
-                  <p className="text-sm mt-1">Drag tasks from Brain Dump or other days</p>
+                <div className="text-center py-8 text-gray-500 text-xs">
+                  <CalendarIcon className="w-10 h-10 mx-auto mb-2 opacity-40" />
+                  <p>No tasks</p>
+                  <p className="mt-1">Drag tasks from Brain Dump</p>
                 </div>
               )}
             </div>
           ) : (
-            <div className="p-4 text-center text-gray-500">
-              <CalendarIcon className="w-12 h-12 mx-auto mb-3 opacity-50" />
+            <div className="p-4 text-center text-gray-500 text-sm">
+              <CalendarIcon className="w-10 h-10 mx-auto mb-2 opacity-40" />
               <p>Select a day to view tasks</p>
             </div>
           )}
