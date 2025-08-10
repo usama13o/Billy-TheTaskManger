@@ -37,6 +37,23 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     }
   }, [task]);
 
+  // Delete with keyboard 'Delete' key when modal is open (and not typing in a field)
+  useEffect(() => {
+    if (!isOpen || !task) return;
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      const isEditable = target?.isContentEditable || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+      if (!isEditable && (e.key === 'Delete')) {
+        e.preventDefault();
+        onDelete(task.id);
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [isOpen, task, onDelete, onClose]);
+
   const handleSave = () => {
     if (!task) return;
     
