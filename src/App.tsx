@@ -30,7 +30,8 @@ function App() {
     addTask,
     updateTask,
     deleteTask,
-    moveTask
+  moveTask,
+  jumpToToday
   } = useTasks();
 
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -39,6 +40,7 @@ function App() {
     if (typeof window === 'undefined') return 'dark';
     return (localStorage.getItem('btm.theme') as 'light' | 'dark') || 'dark';
   });
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -46,7 +48,19 @@ function App() {
     localStorage.setItem('btm.theme', theme);
   }, [theme]);
 
-  const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
+  const toggleTheme = () => {
+    setNotice(null);
+    setTimeout(() => setNotice(null), 0);
+    setNotice(null);
+    setTimeout(() => setNotice(null), 0); // ensure cleared
+    if (theme === 'dark') {
+      setNotice("you're better than this – go back to the dark side ✨");
+      // Do NOT switch to light; playful rejection
+      setTimeout(() => setNotice(null), 4000);
+      return;
+    }
+    setTheme('dark');
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -100,7 +114,7 @@ function App() {
   };
 
   return (
-  <div className="h-screen flex flex-col transition-colors bg-[var(--color-bg)] text-[var(--color-text)]">
+    <div className="h-screen flex flex-col transition-colors bg-[var(--color-bg)] text-[var(--color-text)]">
       <DndContext
         sensors={sensors}
         onDragStart={handleDragStart}
@@ -113,7 +127,13 @@ function App() {
           onNavigateWeek={navigateWeek}
       theme={theme}
       onToggleTheme={toggleTheme}
+          onToday={jumpToToday}
         />
+        {notice && (
+          <div className="mx-4 mt-2 mb-0 rounded-md bg-gradient-to-r from-fuchsia-600/70 to-purple-700/70 dark:from-fuchsia-600/30 dark:to-purple-800/30 border border-fuchsia-400/40 px-4 py-2 text-xs text-white backdrop-blur-sm shadow">
+            {notice}
+          </div>
+        )}
 
         <div className="flex flex-1 overflow-hidden">
           <BrainDump

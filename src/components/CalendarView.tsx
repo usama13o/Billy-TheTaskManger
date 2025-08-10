@@ -148,7 +148,7 @@ const TaskBlock: React.FC<TaskBlockProps> = ({ task, slotHeight, onToggleComplet
   return (
     <div
       ref={setNodeRef}
-      className={`absolute left-1 right-1 rounded-md border backdrop-blur-sm overflow-hidden group ${styleSet.container} ${resizing ? `ring-2 ${styleSet.ring}` : ''} ${isDragging ? 'opacity-80 ring-2 ring-white/30' : ''}`}
+      className={`task-block-inner absolute left-1 right-1 rounded-md border backdrop-blur-sm overflow-hidden group ${styleSet.container} ${resizing ? `ring-2 ${styleSet.ring}` : ''} ${isDragging ? 'opacity-80 ring-2 ring-white/30' : ''}`}
       style={{ top, height, ...dragStyle }}
       onClick={(e) => {
         e.stopPropagation();
@@ -200,7 +200,17 @@ const DayCalendarColumn: React.FC<DayCalendarColumnProps> = ({ day, timeSlots, s
 
   // Droppable zones for each slot
   return (
-    <div className="relative flex-1 min-w-[180px] border-r border-gray-800" style={{ height: timeSlots.length * slotHeight }}>
+    <div
+      className="relative flex-1 min-w-[180px] border-r border-gray-800 cursor-pointer"
+      style={{ height: timeSlots.length * slotHeight }}
+      onClick={(e) => {
+        // Ignore clicks starting on a task block (their own handlers manage editing)
+        const target = e.target as HTMLElement;
+        if (target.closest('.task-block-inner')) return;
+        // Use provided callback via context (will be bound in parent map)
+        (day as any).onSelect?.(day.date);
+      }}
+    >
       {/* Grid lines */}
       {timeSlots.map((t, idx) => (
         <div
@@ -322,7 +332,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             {days.map(day => (
               <DayCalendarColumn
                 key={day.id}
-                day={day}
+                day={{ ...day, onSelect: onDateSelect } as any}
                 timeSlots={timeSlots}
                 slotHeight={slotHeight}
                 onToggleComplete={onToggleComplete}

@@ -10,6 +10,7 @@ interface HeaderProps {
   onNavigateWeek: (direction: 'prev' | 'next') => void;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
+  onToday: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -18,7 +19,8 @@ export const Header: React.FC<HeaderProps> = ({
   currentWeekStart,
   onNavigateWeek,
   theme,
-  onToggleTheme
+  onToggleTheme,
+  onToday
 }) => {
   return (
     <div className="p-4 border-b transition-colors bg-[var(--color-bg)] border-[var(--color-border)]">
@@ -44,6 +46,10 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <ChevronRight className="w-5 h-5" />
             </button>
+            <button
+              onClick={onToday}
+              className="ml-2 px-3 py-1.5 rounded-md border text-xs font-medium border-[var(--color-border)] text-[var(--color-text)] hover:bg-[var(--color-bg-alt)]"
+            >Today</button>
           </div>
         </div>
 

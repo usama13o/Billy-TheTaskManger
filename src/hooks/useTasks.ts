@@ -167,6 +167,12 @@ export const useTasks = () => {
     setSelectedCalendarDate(date);
   }, []);
 
+  const jumpToToday = useCallback(() => {
+    const today = new Date();
+    setCurrentWeekStart(startOfWeek(today, { weekStartsOn: 0 }));
+    setSelectedCalendarDate(format(today, 'yyyy-MM-dd'));
+  }, []);
+
   // Persist tasks to localStorage whenever they change
   useEffect(() => {
     try {
@@ -285,6 +291,7 @@ export const useTasks = () => {
     addTask,
     updateTask,
     deleteTask,
-    moveTask
+  moveTask,
+  jumpToToday
   };
 };
