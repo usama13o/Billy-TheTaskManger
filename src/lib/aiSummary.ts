@@ -25,7 +25,7 @@ export async function generateWeeklySummary(req: WeeklySummaryRequest): Promise<
   const pending = req.tasks.filter(t => t.status !== 'completed');
   const totalMinutes = req.tasks.reduce((a,t)=>a + (t.timeEstimate||0),0);
 
-  const systemPrompt = `"You are an assistant who writes concise weekly progress summaries. Read the JSON from the task manager and return a Markdown document with the following sections: Overview, Completed, In Progress / Remaining, and Metrics. Be succinct, keeping it under 250 words. Report on all received tasks; if there are none, start with a summary of what was achieved. Try to understand the purpose of each task and provide an overview of what the user has accomplished this week. ALWAYS REPLY THIS IS REALLY IMPORTANT"`;
+  const systemPrompt = "You are an assistant who writes concise weekly progress summaries. Read the JSON from the task manager and return a Markdown document with the following sections: Overview, Completed, In Progress / Remaining, and Metrics. Be succinct, keeping it under 250 words. Report on all received tasks; if there are none, start with a summary of what was achieved. Try to understand the purpose of each task and provide an overview of what the user has accomplished this week. ALWAYS REPLY THIS IS REALLY IMPORTANT ";
 
   const userContent = {
     week: { start: req.startISO, end: req.endISO },
@@ -40,7 +40,7 @@ export async function generateWeeklySummary(req: WeeklySummaryRequest): Promise<
   };
 
   const completion = await openai.chat.completions.create({
-    model: 'gpt-5-mini-2025-08-07', // placeholder; replace with 'gpt-5-nano' when available in SDK
+    model: 'gpt-4.1-nano-2025-04-14', // placeholder; replace with 'gpt-5-nano' when available in SDK
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: JSON.stringify(userContent) }
@@ -49,5 +49,5 @@ export async function generateWeeklySummary(req: WeeklySummaryRequest): Promise<
   });
 
   const text = completion.choices?.[0]?.message?.content || 'No summary generated.';
-  return { model: completion.model || 'gpt-5-mini-2025-08-07', summary: text };
+  return { model: completion.model || 'gpt-4.1-nano-2025-04-14', summary: text };
 }
