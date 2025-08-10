@@ -40,7 +40,7 @@ export async function generateWeeklySummary(req: WeeklySummaryRequest): Promise<
   };
 
   const completion = await openai.chat.completions.create({
-    model: 'gpt-4o-mini', // placeholder; replace with 'gpt-5-nano' when available in SDK
+    model: 'gpt-5-nano-2025-08-07', // placeholder; replace with 'gpt-5-nano' when available in SDK
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: JSON.stringify(userContent) }
@@ -50,5 +50,5 @@ export async function generateWeeklySummary(req: WeeklySummaryRequest): Promise<
   });
 
   const text = completion.choices?.[0]?.message?.content || 'No summary generated.';
-  return { model: completion.model || 'gpt-4o-mini', summary: text };
+  return { model: completion.model || 'gpt-5-nano-2025-08-07', summary: text };
 }
