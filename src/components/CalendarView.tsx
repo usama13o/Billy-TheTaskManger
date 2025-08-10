@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { DayColumn, Task, TimeSlot } from '../types';
 import { TaskCard } from './TaskCard';
 import { useDroppable } from '@dnd-kit/core';
@@ -10,34 +10,191 @@ interface CalendarViewProps {
   onDateSelect: (date: string) => void;
   onToggleComplete: (taskId: string) => void;
   onEditTask: (task: Task) => void;
+  updateTask: (taskId: string, updates: Partial<Task>) => void;
 }
 
 interface CalendarTimeSlotProps {
   dayId: string;
   time: string;
   tasks: Task[];
+  allDayTasks: Task[];
   onToggleComplete: (taskId: string) => void;
   onEditTask: (task: Task) => void;
+  updateTask: (taskId: string, updates: Partial<Task>) => void;
 }
 
-const CalendarTimeSlotComponent: React.FC<CalendarTimeSlotProps> = ({ dayId, time, tasks, onToggleComplete, onEditTask }) => {
-  const { setNodeRef, isOver } = useDroppable({ id: `slot|${dayId}|${time}` });
+interface SpanningTaskProps {
+  task: Task;
+  startHour: number;
+  dayId: string;
+  onToggleComplete: (taskId: string) => void;
+  onEditTask: (task: Task) => void;
+  updateTask: (taskId: string, updates: Partial<Task>) => void;
+}
+
+const SpanningTask: React.FC<SpanningTaskProps> = ({ 
+  task, 
+  startHour, 
+  dayId, 
+  onToggleComplete, 
+  onEditTask, 
+  updateTask 
+}) => {
+  const [resizing, setResizing] = useState(false);
+  const [resizePreview, setResizePreview] = useState<number | null>(null);
+  const startYRef = useRef(0);
+  const originalDurationRef = useRef(0);
+  
+  const currentDuration = resizePreview ?? task.timeEstimate ?? 30;
+  const durationHours = currentDuration / 60;
+  const height = Math.max(1, durationHours) * 60; // 60px per hour
+  const top = startHour * 60;
+
+  const handleResizeStart = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    setResizing(true);
+    startYRef.current = e.clientY;
+    originalDurationRef.current = task.timeEstimate ?? 30;
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const handleResizeMove = useCallback((e: PointerEvent) => {
+    if (!resizing) return;
+    const deltaY = e.clientY - startYRef.current;
+    // 30 minutes = 30px, so 1px = 1 minute
+    const minutesChanged = Math.round(deltaY / 2) * 30; // Snap to 30-minute increments
+    const newDuration = Math.max(30, originalDurationRef.current + minutesChanged);
+    setResizePreview(newDuration);
+  }, [resizing]);
+
+  const handleResizeEnd = useCallback(() => {
+    if (!resizing) return;
+    setResizing(false);
+    
+    if (resizePreview && resizePreview !== task.timeEstimate) {
+      updateTask(task.id, { timeEstimate: resizePreview });
+    }
+    setResizePreview(null);
+  }, [resizing, resizePreview, task.id, task.timeEstimate, updateTask]);
+
+  useEffect(() => {
+    if (resizing) {
+      document.addEventListener('pointermove', handleResizeMove);
+      document.addEventListener('pointerup', handleResizeEnd);
+      return () => {
+        document.removeEventListener('pointermove', handleResizeMove);
+        document.removeEventListener('pointerup', handleResizeEnd);
+      };
+    }
+  }, [resizing, handleResizeMove, handleResizeEnd]);
+
+  const endTime = new Date();
+  endTime.setHours(Math.floor(startHour + currentDuration / 60));
+  endTime.setMinutes((startHour * 60 + currentDuration) % 60);
+
   return (
     <div
-      ref={setNodeRef}
-      className={`flex-1 min-w-[180px] min-h-[52px] p-1.5 border-r border-gray-800 transition-colors ${
-        isOver ? 'bg-green-900/40' : 'hover:bg-gray-800/40'
-      }`}
+      className={`absolute left-1 right-1 bg-green-600/20 border border-green-500/60 rounded-md group overflow-hidden ${
+        resizing ? 'ring-2 ring-green-400 z-20' : 'z-10'
+      } ${resizePreview ? 'bg-green-600/30' : ''}`}
+      style={{ top: `${top}px`, height: `${height}px` }}
+      onClick={(e) => { e.stopPropagation(); onEditTask(task); }}
     >
-      <div className="space-y-1">
-        {tasks.map(task => (
-          <TaskCard
+      <div className="h-full flex flex-col text-xs p-2">
+        <div className="flex items-center justify-between">
+          <span className="font-medium text-green-300 truncate">{task.title}</span>
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleComplete(task.id); }}
+            className={`w-3 h-3 rounded-full border transition-colors ${
+              task.status === 'completed' 
+                ? 'bg-green-400 border-green-300' 
+                : 'border-green-400 hover:bg-green-500/30'
+            }`}
+          >
+            {task.status === 'completed' && <div className="w-1.5 h-1.5 bg-green-900 rounded-sm mx-auto" />}
+          </button>
+        </div>
+        
+        {task.description && height > 40 && (
+          <div className="text-[10px] text-gray-300 mt-1 line-clamp-2">{task.description}</div>
+        )}
+        
+        <div className="mt-auto text-[10px] text-green-400">
+          {task.scheduledTime} - {endTime.toTimeString().slice(0, 5)} ({currentDuration}m)
+        </div>
+      </div>
+      
+      {/* Resize handle */}
+      <div
+        className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize bg-green-500/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+        onPointerDown={handleResizeStart}
+      >
+        <div className="text-green-900 text-xs font-bold">⋮⋮⋮</div>
+      </div>
+    </div>
+  );
+};
+
+const CalendarTimeSlotComponent: React.FC<CalendarTimeSlotProps> = ({ 
+  dayId, 
+  time, 
+  tasks, 
+  allDayTasks,
+  onToggleComplete, 
+  onEditTask, 
+  updateTask 
+}) => {
+  const { setNodeRef, isOver } = useDroppable({ id: `slot|${dayId}|${time}` });
+  const hour = parseInt(time.split(':')[0]);
+  
+  // Only show spanning tasks that start at this hour
+  const spanningTasks = allDayTasks.filter(task => {
+    if (!task.scheduledTime) return false;
+    const taskStartHour = parseInt(task.scheduledTime.split(':')[0]);
+    return taskStartHour === hour;
+  });
+
+  // Show individual tasks that exactly match this time slot
+  const slotTasks = tasks.filter(task => task.scheduledTime === time);
+  
+  return (
+    <div className="relative" style={{ height: '60px' }}>
+      <div
+        ref={setNodeRef}
+        className={`absolute inset-0 border-r border-gray-800 border-b border-gray-800/50 transition-colors ${
+          isOver ? 'bg-green-900/40' : 'hover:bg-gray-800/40'
+        }`}
+      >
+        {/* All scheduled tasks as spanning tasks (draggable and resizable) */}
+        {spanningTasks.map(task => (
+          <SpanningTask
             key={task.id}
             task={task}
+            startHour={hour}
+            dayId={dayId}
             onToggleComplete={onToggleComplete}
-            onEdit={onEditTask}
+            onEditTask={onEditTask}
+            updateTask={updateTask}
           />
         ))}
+        
+        {/* Fallback: Simple display for tasks without proper time format */}
+        {slotTasks.length > 0 && spanningTasks.length === 0 && (
+          <div className="absolute inset-1 space-y-1">
+            {slotTasks.map(task => (
+              <div key={task.id} className="bg-blue-600/20 border border-blue-500/60 rounded p-1">
+                <TaskCard
+                  task={task}
+                  onToggleComplete={onToggleComplete}
+                  onEdit={onEditTask}
+                />
+                <div className="text-[10px] text-blue-300 mt-1">
+                  {task.scheduledTime} ({task.timeEstimate}m)
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -48,7 +205,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   selectedDate,
   onDateSelect,
   onToggleComplete,
-  onEditTask
+  onEditTask,
+  updateTask
 }) => {
   const timeSlots: TimeSlot[] = Array.from({ length: 24 }, (_, hour) => {
     const time = `${hour.toString().padStart(2, '0')}:00`;
@@ -68,7 +226,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       <div className="flex-1 overflow-auto">
         <div className="min-w-max">
           {/* Header */}
-          <div className="sticky top-0 bg-gray-900 border-b border-gray-700 z-10">
+          <div className="sticky top-0 bg-gray-900 border-b border-gray-700 z-30">
             <div className="flex">
               <div className="w-14 flex-shrink-0 bg-gray-900"></div>
               {days.map(day => {
@@ -93,11 +251,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           </div>
 
           {/* Time slots */}
-          <div>
+          <div className="relative">
             {timeSlots.map(({ time, displayTime }) => (
-              <div key={time} className="flex border-b border-gray-800">
-                <div className="w-14 flex-shrink-0 p-1.5 pr-2 text-[10px] md:text-xs text-gray-500 text-right border-r border-gray-800">
-                  {displayTime}
+              <div key={time} className="flex">
+                <div className="w-14 flex-shrink-0 p-1.5 pr-2 text-[10px] md:text-xs text-gray-500 text-right border-r border-gray-800" style={{ height: '60px' }}>
+                  <div className="sticky top-16">{displayTime}</div>
                 </div>
                 {days.map(day => (
                   <CalendarTimeSlotComponent
@@ -105,8 +263,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     dayId={day.id}
                     time={time}
                     tasks={day.tasks.filter(t => t.scheduledTime === time)}
+                    allDayTasks={day.tasks.filter(t => t.scheduledTime)}
                     onToggleComplete={onToggleComplete}
                     onEditTask={onEditTask}
+                    updateTask={updateTask}
                   />
                 ))}
               </div>

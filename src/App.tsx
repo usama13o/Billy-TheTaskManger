@@ -123,6 +123,7 @@ function App() {
               onDateSelect={setSelectedDate}
               onToggleComplete={handleToggleComplete}
               onEditTask={setEditingTask}
+              updateTask={updateTask}
             />
           )}
         </div>
