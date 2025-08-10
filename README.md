@@ -162,6 +162,50 @@ Everything is local. If you clear browser storage you lose tasks (export / impor
 - Offline-first + sync conflict resolution
 - Theming (light / custom palettes)
 
+## ✅ Supabase Sync Checklist (WIP Tracking)
+
+Status markers: [ ] = pending, [x] = done, [~] = partial.
+
+- [x] Environment variable for anon key (`VITE_SUPABASE_ANON_KEY`) – no hard‑coded secret
+- [x] Basic client integration (`supabaseClient.ts`)
+- [x] Initial fetch + merge of remote tasks
+- [x] Live realtime subscription (insert/update/delete)
+- [x] Outbound writes (add/update/delete → upsert/delete)
+- [ ] Debounce / throttle bulk upsert (currently every state change triggers one)
+- [ ] Add `updated_at` column + conflict resolution (last write wins right now)
+- [ ] Proper error handling + retry queue (fire & forget currently)
+- [ ] Row Level Security policies (open policies if public demo; tighten for auth)
+- [ ] Auth + `user_id` column (scoped multi‑user data isolation)
+- [ ] Migration SQL scripts (`sql/` folder) for reproducible schema
+- [ ] Index optimization review after real usage (baseline indexes suggested)
+- [ ] Offline change queue + reconciliation after reconnect
+- [ ] Export / import (JSON) to supplement remote sync
+- [ ] Selective / incremental sync (diff instead of full upsert set)
+- [ ] Unit tests around mapping (Supabase row <-> Task)
+- [ ] Observability: console noise replaced with structured logger / metrics hooks
+
+Suggested table additions for future steps:
+```sql
+alter table public.tasks
+	add column if not exists updated_at timestamptz not null default now();
+create index if not exists tasks_updated_at_idx on public.tasks(updated_at);
+```
+
+Future auth (after enabling Supabase Auth):
+```sql
+alter table public.tasks add column if not exists user_id uuid references auth.users(id);
+create index if not exists tasks_user_id_idx on public.tasks(user_id);
+-- Policies (example)
+create policy "Task Select" on public.tasks for select using (auth.uid() = user_id);
+create policy "Task Modify" on public.tasks for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+```
+
+Conflict strategy sketch:
+1. Store `updated_at` locally.
+2. When pushing update: include last known `updated_at`.
+3. If server row `updated_at` is newer, fetch + merge (or prompt user).
+4. On realtime payload, only apply if `payload.updated_at > local.updated_at`.
+
 ## 🤝 Contributing
 
 PRs welcome. Please keep patches focused and include a brief description. If you introduce new dependencies, justify them in the PR body.
