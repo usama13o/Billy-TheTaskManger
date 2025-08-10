@@ -27,9 +27,26 @@ export const BrainDump: React.FC<BrainDumpProps> = ({
   });
 
   const handleAddTask = () => {
-    const title = newTaskTitle.trim();
-    if (!title) return;
-    onAddTask({ title });
+    const raw = newTaskTitle.trim();
+    if (!raw) return;
+    // Split by semicolons: title; description; priority(l/m/h); rest appended to description
+    const parts = raw.split(';').map(p => p.trim()).filter(p => p.length > 0);
+    let title = parts[0] || 'Untitled';
+    let description = '';
+    let priority: Task['priority'] | undefined;
+    if (parts.length > 1) description = parts[1];
+    if (parts.length > 2) {
+      const p = parts[2].toLowerCase();
+      if (p.startsWith('l')) priority = 'low';
+      else if (p.startsWith('m')) priority = 'medium';
+      else if (p.startsWith('h')) priority = 'high';
+      else description += (description ? ' ' : '') + parts[2];
+    }
+    if (parts.length > 3) {
+      const extra = parts.slice(3).join('; ');
+      description += (description ? '\n' : '') + extra;
+    }
+    onAddTask({ title, description, priority });
     setNewTaskTitle('');
     // stay in adding mode for rapid entry
     requestAnimationFrame(() => inputRef.current?.focus());

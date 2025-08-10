@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { rewriteTaskDescription } from '../lib/aiSummary';
 import { Task } from '../types';
 import { X, Clock, Flag, Tag } from 'lucide-react';
 
@@ -24,6 +25,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [scheduledTime, setScheduledTime] = useState('');
+  const [rewriting, setRewriting] = useState(false);
 
   useEffect(() => {
     if (task) {
@@ -66,6 +68,19 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       scheduledTime: scheduledTime || undefined
     });
     onClose();
+  };
+
+  const handleRewrite = async () => {
+    if (!task) return;
+    setRewriting(true);
+    try {
+      const improved = await rewriteTaskDescription(task.title, description, priority);
+      setDescription(improved);
+    } catch {
+      setDescription(d => d.replace(/\s+/g,' ').trim());
+    } finally {
+      setRewriting(false);
+    }
   };
 
   const handleAddTag = () => {
@@ -131,6 +146,14 @@ export const TaskModal: React.FC<TaskModalProps> = ({
               className="w-full p-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-green-400 resize-none"
               placeholder="Task description..."
             />
+            <div className="flex justify-end mt-1">
+              <button
+                type="button"
+                onClick={handleRewrite}
+                disabled={rewriting}
+                className="text-xs px-2 py-1 rounded bg-gray-600 hover:bg-gray-500 disabled:opacity-50 text-gray-100"
+              >{rewriting ? 'Rewriting...' : 'AI Rewrite'}</button>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

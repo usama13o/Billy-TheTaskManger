@@ -16,6 +16,22 @@ export interface WeeklySummaryResult {
   summary: string;
 }
 
+export async function rewriteTaskDescription(title: string, description: string, priority: string) {
+  if (!apiKey) throw new Error('Missing VITE_OPENAI_API_KEY');
+  const openai = new OpenAI({ apiKey, dangerouslyAllowBrowser:true });
+  const sys = 'You rewrite a single task description. Return ONLY the improved description text, no preamble.';
+  const user = JSON.stringify({ title, description, priority });
+  const completion = await openai.chat.completions.create({
+    model: 'gpt-4.1-nano-2025-04-14',
+    messages: [
+      { role: 'system', content: sys },
+      { role: 'user', content: user }
+    ],
+    max_completion_tokens: 250
+  });
+  return completion.choices?.[0]?.message?.content?.trim() || description;
+}
+
 export async function generateWeeklySummary(req: WeeklySummaryRequest): Promise<WeeklySummaryResult> {
   if (!apiKey) {
     throw new Error('Missing VITE_OPENAI_API_KEY');
