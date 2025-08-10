@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { DayColumn, Task, TimeSlot } from '../types';
+import { DayColumn, Task } from '../types';
 import { TaskCard } from './TaskCard';
 import { useDroppable } from '@dnd-kit/core';
 import { Clock, Calendar as CalendarIcon } from 'lucide-react';
@@ -13,69 +13,64 @@ interface CalendarViewProps {
   updateTask: (taskId: string, updates: Partial<Task>) => void;
 }
 
-interface CalendarTimeSlotProps {
-  dayId: string;
-  time: string;
-  tasks: Task[];
-  allDayTasks: Task[];
+// ---- New 30-min slot calendar implementation ----
+
+interface DayCalendarColumnProps {
+  day: DayColumn;
+  timeSlots: string[]; // in HH:MM ascending, 30m steps
+  slotHeight: number;
   onToggleComplete: (taskId: string) => void;
   onEditTask: (task: Task) => void;
   updateTask: (taskId: string, updates: Partial<Task>) => void;
 }
 
-interface SpanningTaskProps {
+interface TaskBlockProps {
   task: Task;
-  startHour: number;
-  dayId: string;
+  slotHeight: number;
   onToggleComplete: (taskId: string) => void;
   onEditTask: (task: Task) => void;
   updateTask: (taskId: string, updates: Partial<Task>) => void;
 }
 
-const SpanningTask: React.FC<SpanningTaskProps> = ({ 
-  task, 
-  startHour, 
-  dayId, 
-  onToggleComplete, 
-  onEditTask, 
-  updateTask 
-}) => {
+const TaskBlock: React.FC<TaskBlockProps> = ({ task, slotHeight, onToggleComplete, onEditTask, updateTask }) => {
   const [resizing, setResizing] = useState(false);
-  const [resizePreview, setResizePreview] = useState<number | null>(null);
+  const [previewMinutes, setPreviewMinutes] = useState<number | null>(null);
   const startYRef = useRef(0);
-  const originalDurationRef = useRef(0);
-  
-  const currentDuration = resizePreview ?? task.timeEstimate ?? 30;
-  const durationHours = currentDuration / 60;
-  const height = Math.max(1, durationHours) * 60; // 60px per hour
-  const top = startHour * 60;
+  const originalMinutesRef = useRef(0);
+
+  const startHour = task.scheduledTime ? parseInt(task.scheduledTime.split(':')[0]) : 0;
+  const startMinute = task.scheduledTime ? parseInt(task.scheduledTime.split(':')[1]) : 0;
+  const startIndex = startHour * 2 + (startMinute >= 30 ? 1 : 0);
+
+  const currentMinutes = previewMinutes ?? task.timeEstimate ?? 30;
+  const slots = Math.max(1, Math.ceil(currentMinutes / 30));
+  const height = slots * slotHeight;
+  const top = startIndex * slotHeight;
 
   const handleResizeStart = (e: React.PointerEvent) => {
     e.stopPropagation();
     setResizing(true);
     startYRef.current = e.clientY;
-    originalDurationRef.current = task.timeEstimate ?? 30;
+    originalMinutesRef.current = task.timeEstimate ?? 30;
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
   };
 
   const handleResizeMove = useCallback((e: PointerEvent) => {
     if (!resizing) return;
     const deltaY = e.clientY - startYRef.current;
-    // 30 minutes = 30px, so 1px = 1 minute
-    const minutesChanged = Math.round(deltaY / 2) * 30; // Snap to 30-minute increments
-    const newDuration = Math.max(30, originalDurationRef.current + minutesChanged);
-    setResizePreview(newDuration);
-  }, [resizing]);
+    const slotsDelta = Math.round(deltaY / slotHeight); // each slotHeight px = 30m
+    const newMinutes = Math.max(30, originalMinutesRef.current + slotsDelta * 30);
+    setPreviewMinutes(newMinutes);
+  }, [resizing, slotHeight]);
 
   const handleResizeEnd = useCallback(() => {
     if (!resizing) return;
     setResizing(false);
-    
-    if (resizePreview && resizePreview !== task.timeEstimate) {
-      updateTask(task.id, { timeEstimate: resizePreview });
+    if (previewMinutes && previewMinutes !== task.timeEstimate) {
+      updateTask(task.id, { timeEstimate: previewMinutes });
     }
-    setResizePreview(null);
-  }, [resizing, resizePreview, task.id, task.timeEstimate, updateTask]);
+    setPreviewMinutes(null);
+  }, [resizing, previewMinutes, task.id, task.timeEstimate, updateTask]);
 
   useEffect(() => {
     if (resizing) {
@@ -88,114 +83,91 @@ const SpanningTask: React.FC<SpanningTaskProps> = ({
     }
   }, [resizing, handleResizeMove, handleResizeEnd]);
 
-  const endTime = new Date();
-  endTime.setHours(Math.floor(startHour + currentDuration / 60));
-  endTime.setMinutes((startHour * 60 + currentDuration) % 60);
+  const endTotalMinutes = startHour * 60 + startMinute + currentMinutes;
+  const endHour = Math.floor(endTotalMinutes / 60) % 24;
+  const endMinute = endTotalMinutes % 60;
+  const endTime = `${endHour.toString().padStart(2,'0')}:${endMinute.toString().padStart(2,'0')}`;
 
   return (
     <div
-      className={`absolute left-1 right-1 bg-green-600/20 border border-green-500/60 rounded-md group overflow-hidden ${
-        resizing ? 'ring-2 ring-green-400 z-20' : 'z-10'
-      } ${resizePreview ? 'bg-green-600/30' : ''}`}
-      style={{ top: `${top}px`, height: `${height}px` }}
+      className={`absolute left-1 right-1 rounded-md border border-green-500/40 bg-green-500/15 backdrop-blur-sm overflow-hidden group ${resizing ? 'ring-2 ring-green-400' : ''}`}
+      style={{ top, height }}
       onClick={(e) => { e.stopPropagation(); onEditTask(task); }}
     >
-      <div className="h-full flex flex-col text-xs p-2">
-        <div className="flex items-center justify-between">
-          <span className="font-medium text-green-300 truncate">{task.title}</span>
+      <div className="p-2 h-full flex flex-col gap-1 select-none text-xs text-gray-200">
+        <div className="flex items-start justify-between gap-2">
+          <h4 className="font-medium leading-tight line-clamp-3 flex-1">{task.title}</h4>
           <button
             onClick={(e) => { e.stopPropagation(); onToggleComplete(task.id); }}
-            className={`w-3 h-3 rounded-full border transition-colors ${
-              task.status === 'completed' 
-                ? 'bg-green-400 border-green-300' 
-                : 'border-green-400 hover:bg-green-500/30'
-            }`}
+            className={`w-4 h-4 rounded-full border flex items-center justify-center text-[10px] ${task.status==='completed' ? 'bg-green-400 border-green-300 text-green-900' : 'border-green-400 hover:bg-green-400/20'}`}
           >
-            {task.status === 'completed' && <div className="w-1.5 h-1.5 bg-green-900 rounded-sm mx-auto" />}
+            {task.status === 'completed' && '✓'}
           </button>
         </div>
-        
-        {task.description && height > 40 && (
-          <div className="text-[10px] text-gray-300 mt-1 line-clamp-2">{task.description}</div>
+        {task.description && height >= slotHeight * 3 && (
+          <p className="text-[11px] text-gray-400 line-clamp-3">{task.description}</p>
         )}
-        
-        <div className="mt-auto text-[10px] text-green-400">
-          {task.scheduledTime} - {endTime.toTimeString().slice(0, 5)} ({currentDuration}m)
+        {task.tags.length>0 && height >= slotHeight * 4 && (
+          <div className="flex gap-1 flex-wrap">
+            {task.tags.slice(0,3).map(tag => (
+              <span key={tag} className="px-1 py-0.5 bg-green-500/25 rounded text-[10px] text-green-300">{tag}</span>
+            ))}
+            {task.tags.length>3 && <span className="px-1 py-0.5 bg-gray-600/40 rounded text-[10px]">+{task.tags.length-3}</span>}
+          </div>
+        )}
+        <div className="mt-auto flex items-center justify-between text-[10px] text-green-300 pt-1 border-t border-green-500/30">
+          <span>{task.scheduledTime} - {endTime}</span>
+          <span>{currentMinutes}m</span>
         </div>
       </div>
-      
-      {/* Resize handle */}
       <div
-        className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize bg-green-500/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+        className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize bg-green-400/0 group-hover:bg-green-400/20 flex items-center justify-center text-[8px] text-green-300"
         onPointerDown={handleResizeStart}
       >
-        <div className="text-green-900 text-xs font-bold">⋮⋮⋮</div>
+        ⋮
       </div>
     </div>
   );
 };
 
-const CalendarTimeSlotComponent: React.FC<CalendarTimeSlotProps> = ({ 
-  dayId, 
-  time, 
-  tasks, 
-  allDayTasks,
-  onToggleComplete, 
-  onEditTask, 
-  updateTask 
-}) => {
-  const { setNodeRef, isOver } = useDroppable({ id: `slot|${dayId}|${time}` });
-  const hour = parseInt(time.split(':')[0]);
-  
-  // Only show spanning tasks that start at this hour
-  const spanningTasks = allDayTasks.filter(task => {
-    if (!task.scheduledTime) return false;
-    const taskStartHour = parseInt(task.scheduledTime.split(':')[0]);
-    return taskStartHour === hour;
-  });
+const DayCalendarColumn: React.FC<DayCalendarColumnProps> = ({ day, timeSlots, slotHeight, onToggleComplete, onEditTask, updateTask }) => {
+  // All scheduled tasks for this day
+  const scheduled = day.tasks.filter(t => t.scheduledTime);
 
-  // Show individual tasks that exactly match this time slot
-  const slotTasks = tasks.filter(task => task.scheduledTime === time);
-  
+  // Droppable zones for each slot
   return (
-    <div className="relative" style={{ height: '60px' }}>
-      <div
-        ref={setNodeRef}
-        className={`absolute inset-0 border-r border-gray-800 border-b border-gray-800/50 transition-colors ${
-          isOver ? 'bg-green-900/40' : 'hover:bg-gray-800/40'
-        }`}
-      >
-        {/* All scheduled tasks as spanning tasks (draggable and resizable) */}
-        {spanningTasks.map(task => (
-          <SpanningTask
-            key={task.id}
-            task={task}
-            startHour={hour}
-            dayId={dayId}
-            onToggleComplete={onToggleComplete}
-            onEditTask={onEditTask}
-            updateTask={updateTask}
+    <div className="relative flex-1 min-w-[180px] border-r border-gray-800" style={{ height: timeSlots.length * slotHeight }}>
+      {/* Grid lines */}
+      {timeSlots.map((t, idx) => (
+        <div
+          key={t + '-grid'}
+          className={`absolute left-0 right-0 ${t.endsWith(':00') ? 'border-t border-gray-800' : 'border-t border-gray-800/50'} pointer-events-none`}
+          style={{ top: idx * slotHeight }}
+        />
+      ))}
+      {/* Droppable overlays */}
+      {timeSlots.map((t, idx) => {
+        const { setNodeRef, isOver } = useDroppable({ id: `slot|${day.id}|${t}` });
+        return (
+          <div
+            key={t}
+            ref={setNodeRef}
+            className={`absolute left-0 right-0 ${isOver ? 'bg-green-500/20' : ''}`}
+            style={{ top: idx * slotHeight, height: slotHeight }}
           />
-        ))}
-        
-        {/* Fallback: Simple display for tasks without proper time format */}
-        {slotTasks.length > 0 && spanningTasks.length === 0 && (
-          <div className="absolute inset-1 space-y-1">
-            {slotTasks.map(task => (
-              <div key={task.id} className="bg-blue-600/20 border border-blue-500/60 rounded p-1">
-                <TaskCard
-                  task={task}
-                  onToggleComplete={onToggleComplete}
-                  onEdit={onEditTask}
-                />
-                <div className="text-[10px] text-blue-300 mt-1">
-                  {task.scheduledTime} ({task.timeEstimate}m)
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+        );
+      })}
+      {/* Tasks */}
+      {scheduled.map(task => (
+        <TaskBlock
+          key={task.id}
+          task={task}
+          slotHeight={slotHeight}
+          onToggleComplete={onToggleComplete}
+          onEditTask={onEditTask}
+          updateTask={updateTask}
+        />
+      ))}
     </div>
   );
 };
@@ -208,13 +180,18 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   onEditTask,
   updateTask
 }) => {
-  const timeSlots: TimeSlot[] = Array.from({ length: 24 }, (_, hour) => {
-    const time = `${hour.toString().padStart(2, '0')}:00`;
-    const displayTime = hour === 0 ? '12 AM' : 
-                       hour < 12 ? `${hour} AM` : 
-                       hour === 12 ? '12 PM' : `${hour - 12} PM`;
-    return { time, hour, displayTime };
+  // 30-minute time slots (48 slots)
+  const slotHeight = 30; // px per 30m
+  const timeSlots: string[] = Array.from({ length: 24 * 2 }, (_, i) => {
+    const hour = Math.floor(i / 2);
+    const min = i % 2 === 0 ? '00' : '30';
+    return `${hour.toString().padStart(2,'0')}:${min}`;
   });
+
+  const hourLabels: { index: number; label: string }[] = Array.from({ length: 24 }, (_, h) => ({
+    index: h * 2,
+    label: h === 0 ? '12 AM' : h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h - 12} PM`
+  }));
 
   const selectedDay = days.find(d => d.date === selectedDate);
   const selectedDayTasks = selectedDay?.tasks || [];
@@ -250,27 +227,50 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             </div>
           </div>
 
-          {/* Time slots */}
-          <div className="relative">
-            {timeSlots.map(({ time, displayTime }) => (
-              <div key={time} className="flex">
-                <div className="w-14 flex-shrink-0 p-1.5 pr-2 text-[10px] md:text-xs text-gray-500 text-right border-r border-gray-800" style={{ height: '60px' }}>
-                  <div className="sticky top-16">{displayTime}</div>
+          {/* Calendar grid with 30m slots */}
+          <div className="relative flex">
+            {/* Time axis */}
+            <div className="w-14 flex-shrink-0 border-r border-gray-800 relative" style={{ height: timeSlots.length * slotHeight }}>
+              {hourLabels.map(h => (
+                <div
+                  key={h.index}
+                  className="absolute right-1 pr-1 text-[10px] md:text-xs text-gray-500 select-none"
+                  style={{ top: h.index * slotHeight + 2 }}
+                >
+                  {h.label}
                 </div>
-                {days.map(day => (
-                  <CalendarTimeSlotComponent
-                    key={`slot-${day.id}-${time}`}
-                    dayId={day.id}
-                    time={time}
-                    tasks={day.tasks.filter(t => t.scheduledTime === time)}
-                    allDayTasks={day.tasks.filter(t => t.scheduledTime)}
-                    onToggleComplete={onToggleComplete}
-                    onEditTask={onEditTask}
-                    updateTask={updateTask}
-                  />
-                ))}
-              </div>
+              ))}
+            </div>
+            {/* Day columns */}
+            {days.map(day => (
+              <DayCalendarColumn
+                key={day.id}
+                day={day}
+                timeSlots={timeSlots}
+                slotHeight={slotHeight}
+                onToggleComplete={onToggleComplete}
+                onEditTask={onEditTask}
+                updateTask={updateTask}
+              />
             ))}
+            {/* Current time marker */}
+            {(() => {
+              const now = new Date();
+              const todayId = new Date().toISOString().split('T')[0];
+              const minutes = now.getHours() * 60 + now.getMinutes();
+              const top = (minutes / 30) * slotHeight;
+              const columnIndex = days.findIndex(d => d.id === todayId);
+              if (columnIndex === -1) return null;
+              return (
+                <div
+                  className="pointer-events-none absolute flex"
+                  style={{ left: `calc(56px + ${columnIndex} * 180px)`, top }}
+                >
+                  <div className="w-2 h-2 -ml-1 rounded-full bg-red-500" />
+                  <div className="h-px w-[180px] bg-red-500/70" />
+                </div>
+              );
+            })()}
           </div>
         </div>
       </div>
