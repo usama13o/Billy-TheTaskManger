@@ -156,8 +156,20 @@ export const useTasks = () => {
   }, []);
 
   const moveTask = useCallback((taskId: string, scheduledDate?: string, scheduledTime?: string) => {
-    updateTask(taskId, { scheduledDate, scheduledTime });
-  }, [updateTask]);
+    setTasks(prev => {
+      let target: Task | undefined = prev.find(t => t.id === taskId);
+      if (!target) return prev;
+      const updated: Task = { ...target, scheduledDate, scheduledTime };
+      // Remove original
+      const remaining = prev.filter(t => t.id !== taskId);
+      // Append updated to end so it shows at bottom of its day column
+      return [...remaining, updated];
+    });
+    if (SUPA_ENABLED) {
+      const payload: any = { id: taskId, scheduled_date: scheduledDate, scheduled_time: scheduledTime };
+      supabase.from('tasks').upsert(payload).then(({ error }: { error: any }) => logErr('moveTask', error));
+    }
+  }, []);
 
   const navigateWeek = useCallback((direction: 'prev' | 'next') => {
     setCurrentWeekStart(prev => addDays(prev, direction === 'next' ? 7 : -7));

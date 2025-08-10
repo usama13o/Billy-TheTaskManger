@@ -92,7 +92,7 @@ const DayColumnComponent: React.FC<DayColumnProps> = ({
   onToggleComplete,
   onEditTask
 }) => {
-  const { setNodeRef } = useDroppable({
+  const { setNodeRef, isOver } = useDroppable({
     id: `day|${day.id}`
   });
 
@@ -153,7 +153,10 @@ const DayColumnComponent: React.FC<DayColumnProps> = ({
       </div>
 
       <SortableContext items={day.tasks.map(task => task.id)} strategy={verticalListSortingStrategy}>
-        <div ref={setNodeRef} className="flex-1 p-4 space-y-3 min-h-[200px]">
+        <div
+          ref={setNodeRef}
+          className={`flex-1 p-4 space-y-3 min-h-[240px] transition-colors rounded-b-lg ${isOver ? 'bg-gray-700/60 ring-1 ring-green-400/40' : ''}`}
+        >
           {day.tasks.map((task) => (
             <TaskCard
               key={task.id}
@@ -164,8 +167,8 @@ const DayColumnComponent: React.FC<DayColumnProps> = ({
           ))}
           
           {day.tasks.length === 0 && !isAdding && (
-            <div className="text-center py-8 text-gray-500">
-              <p className="text-sm">No tasks scheduled</p>
+            <div className="text-center py-8 text-gray-500 text-sm select-none">
+              {isOver ? 'Release to add here' : 'Drag tasks here'}
             </div>
           )}
         </div>

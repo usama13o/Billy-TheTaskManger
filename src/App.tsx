@@ -75,27 +75,32 @@ function App() {
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-    
     if (!over) {
       setDraggedTask(null);
       return;
     }
-
     const taskId = active.id as string;
     const overId = over.id as string;
 
-    // slot|dayId|HH:00 droppable id format
     if (overId.startsWith('slot|')) {
+      // Calendar precise time slot drop
       const [, dayId, time] = overId.split('|');
       if (dayId) moveTask(taskId, dayId, time);
     } else if (overId === 'brain-dump') {
-      // Return to brain dump (unschedule)
+      // Unschedule task
       moveTask(taskId, undefined, undefined);
     } else if (overId.startsWith('day|')) {
+      // Board view: dropping anywhere in a day column appends it to bottom (handled by moveTask ordering)
       const [, dayId] = overId.split('|');
       moveTask(taskId, dayId, undefined);
+    } else if (viewMode === 'board') {
+      // If we dropped over a task card (sortable item id), infer its day and append to that day.
+      const allDayTasks = weekDays.map(d => ({ dayId: d.id, tasks: d.tasks }));
+      const containing = allDayTasks.find(d => d.tasks.some(t => t.id === overId));
+      if (containing) {
+        moveTask(taskId, containing.dayId, undefined);
+      }
     }
-
     setDraggedTask(null);
   };
 
