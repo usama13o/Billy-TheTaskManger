@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Task, DayColumn, ViewMode } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import { v4 as uuidv4 } from 'uuid';
@@ -88,6 +88,16 @@ export const useTasks = () => {
     };
   });
 
+  const suppressNextUpsertRef = useRef(false); // skip bulk upsert when state change originated from remote
+
+  const logErr = (context: string, error: any) => {
+    if (error) {
+      // Centralized console warning (could be replaced with UI toast later)
+      // eslint-disable-next-line no-console
+      console.warn(`[Supabase:${context}]`, error);
+    }
+  };
+
   const addTask = useCallback((taskData: Partial<Task>) => {
     const newTask: Task = {
       id: uuidv4(),
@@ -104,7 +114,6 @@ export const useTasks = () => {
     
     setTasks(prev => [...prev, newTask]);
     if (SUPA_ENABLED) {
-      // fire and forget
       supabase.from('tasks').upsert({
         id: newTask.id,
         title: newTask.title,
@@ -116,7 +125,7 @@ export const useTasks = () => {
         scheduled_date: newTask.scheduledDate,
         scheduled_time: newTask.scheduledTime,
         tags: newTask.tags
-      }).then(()=>{}).catch(()=>{});
+  }).then(({ error }: { error: any }) => logErr('addTask', error));
     }
     return newTask;
   }, []);
@@ -135,14 +144,14 @@ export const useTasks = () => {
       if (updates.scheduledDate !== undefined) payload.scheduled_date = updates.scheduledDate;
       if (updates.scheduledTime !== undefined) payload.scheduled_time = updates.scheduledTime;
       if (updates.tags !== undefined) payload.tags = updates.tags;
-      supabase.from('tasks').upsert(payload).then(()=>{}).catch(()=>{});
+  supabase.from('tasks').upsert(payload).then(({ error }: { error: any }) => logErr('updateTask', error));
     }
   }, []);
 
   const deleteTask = useCallback((taskId: string) => {
     setTasks(prev => prev.filter(task => task.id !== taskId));
     if (SUPA_ENABLED) {
-      supabase.from('tasks').delete().eq('id', taskId).then(()=>{}).catch(()=>{});
+  supabase.from('tasks').delete().eq('id', taskId).then(({ error }: { error: any }) => logErr('deleteTask', error));
     }
   }, []);
 
@@ -165,7 +174,7 @@ export const useTasks = () => {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
       }
     } catch {/* ignore quota errors for now */}
-    if (SUPA_ENABLED && tasks.length > 0) {
+    if (SUPA_ENABLED && tasks.length > 0 && !suppressNextUpsertRef.current) {
       // Basic push (non-conflict resolution) for any offline changes when tasks mutate.
       // Could be optimized with diffing.
       const rows = tasks.map(t => ({
@@ -180,7 +189,10 @@ export const useTasks = () => {
         scheduled_time: t.scheduledTime,
         tags: t.tags
       }));
-      supabase.from('tasks').upsert(rows).then(()=>{}).catch(()=>{});
+  supabase.from('tasks').upsert(rows).then(({ error }: { error: any }) => logErr('bulkUpsert', error));
+    }
+    if (suppressNextUpsertRef.current) {
+      suppressNextUpsertRef.current = false; // reset after skipping
     }
   }, [tasks]);
 
@@ -190,28 +202,25 @@ export const useTasks = () => {
     let active = true;
     (async () => {
       const { data, error } = await supabase.from('tasks').select('*');
+      if (error) logErr('initialFetch', error);
       if (!error && data && active) {
-        // map supabase row -> Task
         const remoteTasks: Task[] = data.map((r: any) => ({
           id: r.id,
           title: r.title,
           description: r.description || '',
           timeEstimate: r.time_estimate || 30,
-            priority: r.priority || 'medium',
+          priority: r.priority || 'medium',
           status: r.status || 'pending',
           createdAt: r.created_at ? new Date(r.created_at) : new Date(),
           scheduledDate: r.scheduled_date || undefined,
           scheduledTime: r.scheduled_time || undefined,
           tags: r.tags || []
         }));
-        setTasks(prev => {
-          const existingIds = new Set(prev.map(t => t.id));
-          const merged = [...prev];
-          remoteTasks.forEach(rt => {
-            if (!existingIds.has(rt.id)) merged.push(rt);
-          });
-          return merged;
-        });
+        // Overwrite local with remote unless remote empty (keep local seeding)
+        if (remoteTasks.length > 0) {
+          suppressNextUpsertRef.current = true; // prevent echo bulk upsert
+          setTasks(remoteTasks);
+        }
       }
     })();
     const channel = supabase.channel('public:tasks')
@@ -219,6 +228,7 @@ export const useTasks = () => {
         const r: any = payload.new || payload.old;
         setTasks(prev => {
           if (payload.eventType === 'DELETE') {
+            suppressNextUpsertRef.current = true;
             return prev.filter(t => t.id !== r.id);
           }
           const task: Task = {
@@ -234,6 +244,7 @@ export const useTasks = () => {
             tags: r.tags || []
           };
           const idx = prev.findIndex(t => t.id === task.id);
+          suppressNextUpsertRef.current = true; // skip bulk push for realtime reflection
           if (idx === -1) return [...prev, task];
           const copy = [...prev];
           copy[idx] = { ...copy[idx], ...task };
