@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { addDays } from 'date-fns';
 import { useTasks } from './hooks/useTasks';
 import { BrainDump } from './components/BrainDump';
 import { WeeklyBoard } from './components/WeeklyBoard';
@@ -20,6 +21,7 @@ import { TaskCard } from './components/TaskCard';
 
 function App() {
   const {
+  tasks,
     brainDumpTasks,
     weekDays,
     viewMode,
@@ -51,6 +53,7 @@ function App() {
   const [showSummary, setShowSummary] = useState(false);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryText, setSummaryText] = useState<string>('');
+  const [summaryWeekStart, setSummaryWeekStart] = useState<string>(() => currentWeekStart.toISOString().substring(0,10));
 
   useEffect(() => {
     const root = document.documentElement;
@@ -125,15 +128,20 @@ function App() {
     setExportDownloadUrl(url);
   };
 
-  const openSummary = async () => {
-    setShowSummary(true);
+  const runSummary = async (weekStartISO: string) => {
     setSummaryText('');
     setSummaryLoading(true);
     try {
-      const startISO = currentWeekStart.toISOString().substring(0,10);
-      const end = new Date(currentWeekStart); end.setDate(end.getDate()+7);
+      const startDate = new Date(weekStartISO + 'T00:00:00');
+      const end = addDays(startDate, 7);
+      const startISO = weekStartISO;
       const endISO = end.toISOString().substring(0,10);
-      const weekTasks = weekDays.flatMap(d => d.tasks).filter(t => t.scheduledDate);
+      // Filter all tasks by date range (scheduled tasks only)
+      const weekTasks = tasks.filter(t => {
+        if (!t.scheduledDate) return false;
+        const d = new Date(t.scheduledDate + 'T00:00:00');
+        return d >= startDate && d < end;
+      });
       const res = await generateWeeklySummary({ tasks: weekTasks, startISO, endISO });
       setSummaryText(res.summary);
     } catch (e:any) {
@@ -141,6 +149,29 @@ function App() {
     } finally {
       setSummaryLoading(false);
     }
+  };
+
+  const openSummary = () => {
+    setShowSummary(true);
+    runSummary(summaryWeekStart);
+  };
+
+  const shiftSummaryWeek = (direction: 'prev' | 'next') => {
+    const current = new Date(summaryWeekStart + 'T00:00:00');
+    current.setDate(current.getDate() + (direction === 'next' ? 7 : -7));
+    const iso = current.toISOString().substring(0,10);
+    setSummaryWeekStart(iso);
+    if (showSummary) runSummary(iso);
+  };
+
+  const todayWeek = () => {
+    const today = new Date();
+    // Align to existing currentWeekStart offset (assuming week starts on Sunday like app) -> find difference of currentWeekStart weekday
+    const day = today.getDay(); // 0 Sunday
+    const start = new Date(today); start.setDate(start.getDate() - day);
+    const iso = start.toISOString().substring(0,10);
+    setSummaryWeekStart(iso);
+    if (showSummary) runSummary(iso);
   };
 
   const downloadFile = () => {
@@ -368,6 +399,20 @@ function App() {
           <div className="absolute inset-0 bg-black/60" onClick={()=>setShowSummary(false)} />
           <div className="relative w-full max-w-lg rounded-lg bg-gray-900 border border-gray-700 p-5 space-y-4">
             <h3 className="text-lg font-semibold text-white">Weekly AI Summary</h3>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <div className="flex items-center gap-1">
+                <button onClick={()=>shiftSummaryWeek('prev')} className="px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-200">◀</button>
+                <button onClick={()=>shiftSummaryWeek('next')} className="px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-200">▶</button>
+              </div>
+              <input
+                type="date"
+                value={summaryWeekStart}
+                onChange={e => { setSummaryWeekStart(e.target.value); if (showSummary) runSummary(e.target.value); }}
+                className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-gray-200"
+              />
+              <button onClick={todayWeek} className="px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-200">This Week</button>
+              <span className="text-gray-400">Range: {summaryWeekStart} → {addDays(new Date(summaryWeekStart+'T00:00:00'),7).toISOString().substring(0,10)}</span>
+            </div>
             {summaryLoading && <p className="text-sm text-gray-400 animate-pulse">Generating summary...</p>}
             {!summaryLoading && (
               <div className="prose prose-invert max-h-[50vh] overflow-y-auto text-sm whitespace-pre-wrap">
@@ -376,7 +421,7 @@ function App() {
             )}
             <div className="flex gap-2 justify-end">
               <button
-                onClick={()=>openSummary()}
+                onClick={()=>runSummary(summaryWeekStart)}
                 disabled={summaryLoading}
                 className="px-4 py-2 rounded-md bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white text-sm"
               >Regenerate</button>
