@@ -112,6 +112,12 @@ Node 18+ (recommended) & npm (or pnpm/yarn if you adapt commands).
 npm install
 ```
 
+Create a `.env` (or preferably `.env.local`) file with:
+```
+VITE_SUPABASE_ANON_KEY=YOUR_ANON_KEY_HERE
+```
+Never commit service role keys; only the public anon key belongs here.
+
 ### Run Dev Server
 ```bash
 npm run dev

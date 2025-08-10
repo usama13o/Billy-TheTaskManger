@@ -275,14 +275,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   }, [slotHeight]);
 
   return (
-    <div className="flex-1 bg-gray-900 flex overflow-hidden">
+  <div className="flex-1 flex overflow-hidden bg-[var(--color-bg)] text-[var(--color-text)]">
       {/* Calendar Grid */}
   <div ref={scrollRef} className="flex-1 overflow-auto">
         <div className="min-w-max">
           {/* Header */}
-          <div className="sticky top-0 bg-gray-900 border-b border-gray-700 z-30">
+          <div className="sticky top-0 z-30 border-b border-[var(--color-border)] bg-[var(--color-bg)]">
             <div className="flex">
-              <div className="w-14 flex-shrink-0 bg-gray-900"></div>
+              <div className="w-14 flex-shrink-0"></div>
               {days.map(day => {
                 const isToday = day.date === new Date().toISOString().split('T')[0];
                 const isSelected = day.date === selectedDate;
@@ -290,12 +290,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   <div
                     key={day.id}
                     onClick={() => onDateSelect(day.date)}
-                    className={`flex-1 min-w-[180px] p-3 text-center border-r border-gray-800 cursor-pointer select-none transition-colors ${
-                      isSelected ? 'bg-green-500/15' : isToday ? 'bg-green-500/5' : 'hover:bg-gray-800/60'
+                    className={`flex-1 min-w-[180px] p-3 text-center border-r cursor-pointer select-none transition-colors border-[var(--color-border)] ${
+                      isSelected ? 'bg-green-500/20 dark:bg-green-500/15' : isToday ? 'bg-green-500/10 dark:bg-green-500/5' : 'hover:bg-[var(--color-bg-alt)] dark:hover:bg-gray-800/60'
                     }`}
                   >
                     <div className={`text-sm font-medium ${
-                      isSelected ? 'text-green-300' : isToday ? 'text-green-400' : 'text-gray-100'
+                      isSelected ? 'text-green-600 dark:text-green-300' : isToday ? 'text-green-700 dark:text-green-400' : 'text-[var(--color-text)]'
                     }`}>{day.dayName}</div>
                     {isToday && <div className="text-[10px] text-green-400 mt-0.5">Today</div>}
                   </div>
@@ -307,11 +307,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           {/* Calendar grid with 30m slots */}
           <div className="relative flex">
             {/* Time axis */}
-            <div className="w-14 flex-shrink-0 border-r border-gray-800 relative" style={{ height: timeSlots.length * slotHeight }}>
+            <div className="w-14 flex-shrink-0 border-r relative border-[var(--color-border)]" style={{ height: timeSlots.length * slotHeight }}>
               {hourLabels.map(h => (
                 <div
                   key={h.index}
-                  className="absolute right-1 pr-1 text-[10px] md:text-xs text-gray-500 select-none"
+                  className="absolute right-1 pr-1 text-[10px] md:text-xs text-[var(--color-muted)] select-none"
                   style={{ top: h.index * slotHeight + 2 }}
                 >
                   {h.label}
@@ -353,11 +353,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       </div>
 
       {/* Side Panel for Selected Day */}
-      <div className="w-80 bg-gray-900 border-l border-gray-800 flex flex-col">
-        <div className="p-4 border-b border-gray-800">
+    <div className="w-80 flex flex-col border-l bg-[var(--color-bg)] border-[var(--color-border)]">
+  <div className="p-4 border-b border-[var(--color-border)]">
           <div className="flex items-center gap-2 mb-2">
             <CalendarIcon className="w-5 h-5 text-green-400" />
-            <h2 className="text-base font-semibold text-gray-100">
+            <h2 className="text-base font-semibold text-[var(--color-text)]">
               {selectedDay ? selectedDay.dayName : 'Select a Day'}
             </h2>
           </div>
@@ -376,7 +376,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             <div className="p-4 space-y-6">
               {unscheduledTasks.length > 0 && (
                 <div>
-                  <h3 className="text-xs font-medium text-gray-300 mb-2 flex items-center gap-1">
+                  <h3 className="text-xs font-medium mb-2 flex items-center gap-1 text-[var(--color-text)]/70">
                     <Clock className="w-3 h-3" />
                     Unscheduled
                   </h3>
@@ -396,13 +396,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
               {selectedDayTasks.filter(t => t.scheduledTime).length > 0 && (
                 <div>
-                  <h3 className="text-xs font-medium text-gray-300 mb-2">Scheduled</h3>
+                  <h3 className="text-xs font-medium mb-2 text-[var(--color-text)]/70">Scheduled</h3>
                   <div className="space-y-2">
                     {selectedDayTasks
                       .filter(t => t.scheduledTime)
                       .sort((a, b) => (a.scheduledTime || '').localeCompare(b.scheduledTime || ''))
                       .map(task => (
-                        <div key={task.id} className="bg-gray-800 rounded-lg p-2 border-l-4 border-green-500">
+                        <div key={task.id} className="rounded-lg p-2 border-l-4 border-green-500 bg-[var(--color-bg-alt)] dark:bg-gray-800">
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-[10px] text-green-400 font-medium">{task.scheduledTime}</span>
                             <span className="text-[10px] text-gray-400">{task.timeEstimate}m</span>
@@ -420,7 +420,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               )}
 
               {selectedDayTasks.length === 0 && (
-                <div className="text-center py-8 text-gray-500 text-xs">
+                <div className="text-center py-8 text-[var(--color-muted)] text-xs">
                   <CalendarIcon className="w-10 h-10 mx-auto mb-2 opacity-40" />
                   <p>No tasks</p>
                   <p className="mt-1">Drag tasks from Brain Dump</p>
@@ -428,7 +428,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               )}
             </div>
           ) : (
-            <div className="p-4 text-center text-gray-500 text-sm">
+            <div className="p-4 text-center text-[var(--color-muted)] text-sm">
               <CalendarIcon className="w-10 h-10 mx-auto mb-2 opacity-40" />
               <p>Select a day to view tasks</p>
             </div>

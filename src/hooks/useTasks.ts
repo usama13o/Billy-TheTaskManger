@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Task, DayColumn, ViewMode } from '../types';
+import { supabase } from '../lib/supabaseClient';
 import { v4 as uuidv4 } from 'uuid';
 import { format, addDays, startOfWeek } from 'date-fns';
 
@@ -48,6 +49,7 @@ const INITIAL_TASKS: Task[] = [
 
 export const useTasks = () => {
   const STORAGE_KEY = 'taskManager.tasks.v1';
+  const SUPA_ENABLED = true; // toggle if needed quickly
 
   const [tasks, setTasks] = useState<Task[]>(() => {
     if (typeof window === 'undefined') return INITIAL_TASKS; // SSR safety (not used here but defensive)
@@ -101,6 +103,21 @@ export const useTasks = () => {
     };
     
     setTasks(prev => [...prev, newTask]);
+    if (SUPA_ENABLED) {
+      // fire and forget
+      supabase.from('tasks').upsert({
+        id: newTask.id,
+        title: newTask.title,
+        description: newTask.description,
+        time_estimate: newTask.timeEstimate,
+        priority: newTask.priority,
+        status: newTask.status,
+        created_at: newTask.createdAt.toISOString(),
+        scheduled_date: newTask.scheduledDate,
+        scheduled_time: newTask.scheduledTime,
+        tags: newTask.tags
+      }).then(()=>{}).catch(()=>{});
+    }
     return newTask;
   }, []);
 
@@ -108,10 +125,25 @@ export const useTasks = () => {
     setTasks(prev => prev.map(task => 
       task.id === taskId ? { ...task, ...updates } : task
     ));
+    if (SUPA_ENABLED) {
+      const payload: any = { id: taskId };
+      if (updates.title !== undefined) payload.title = updates.title;
+      if (updates.description !== undefined) payload.description = updates.description;
+      if (updates.timeEstimate !== undefined) payload.time_estimate = updates.timeEstimate;
+      if (updates.priority !== undefined) payload.priority = updates.priority;
+      if (updates.status !== undefined) payload.status = updates.status;
+      if (updates.scheduledDate !== undefined) payload.scheduled_date = updates.scheduledDate;
+      if (updates.scheduledTime !== undefined) payload.scheduled_time = updates.scheduledTime;
+      if (updates.tags !== undefined) payload.tags = updates.tags;
+      supabase.from('tasks').upsert(payload).then(()=>{}).catch(()=>{});
+    }
   }, []);
 
   const deleteTask = useCallback((taskId: string) => {
     setTasks(prev => prev.filter(task => task.id !== taskId));
+    if (SUPA_ENABLED) {
+      supabase.from('tasks').delete().eq('id', taskId).then(()=>{}).catch(()=>{});
+    }
   }, []);
 
   const moveTask = useCallback((taskId: string, scheduledDate?: string, scheduledTime?: string) => {
@@ -133,7 +165,87 @@ export const useTasks = () => {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
       }
     } catch {/* ignore quota errors for now */}
+    if (SUPA_ENABLED && tasks.length > 0) {
+      // Basic push (non-conflict resolution) for any offline changes when tasks mutate.
+      // Could be optimized with diffing.
+      const rows = tasks.map(t => ({
+        id: t.id,
+        title: t.title,
+        description: t.description,
+        time_estimate: t.timeEstimate,
+        priority: t.priority,
+        status: t.status,
+        created_at: t.createdAt.toISOString(),
+        scheduled_date: t.scheduledDate,
+        scheduled_time: t.scheduledTime,
+        tags: t.tags
+      }));
+      supabase.from('tasks').upsert(rows).then(()=>{}).catch(()=>{});
+    }
   }, [tasks]);
+
+  // Initial fetch from Supabase (one-way merge) & realtime subscription
+  useEffect(() => {
+    if (!SUPA_ENABLED) return;
+    let active = true;
+    (async () => {
+      const { data, error } = await supabase.from('tasks').select('*');
+      if (!error && data && active) {
+        // map supabase row -> Task
+        const remoteTasks: Task[] = data.map((r: any) => ({
+          id: r.id,
+          title: r.title,
+          description: r.description || '',
+          timeEstimate: r.time_estimate || 30,
+            priority: r.priority || 'medium',
+          status: r.status || 'pending',
+          createdAt: r.created_at ? new Date(r.created_at) : new Date(),
+          scheduledDate: r.scheduled_date || undefined,
+          scheduledTime: r.scheduled_time || undefined,
+          tags: r.tags || []
+        }));
+        setTasks(prev => {
+          const existingIds = new Set(prev.map(t => t.id));
+          const merged = [...prev];
+          remoteTasks.forEach(rt => {
+            if (!existingIds.has(rt.id)) merged.push(rt);
+          });
+          return merged;
+        });
+      }
+    })();
+    const channel = supabase.channel('public:tasks')
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, (payload: any) => {
+        const r: any = payload.new || payload.old;
+        setTasks(prev => {
+          if (payload.eventType === 'DELETE') {
+            return prev.filter(t => t.id !== r.id);
+          }
+          const task: Task = {
+            id: r.id,
+            title: r.title,
+            description: r.description || '',
+            timeEstimate: r.time_estimate || 30,
+            priority: r.priority || 'medium',
+            status: r.status || 'pending',
+            createdAt: r.created_at ? new Date(r.created_at) : new Date(),
+            scheduledDate: r.scheduled_date || undefined,
+            scheduledTime: r.scheduled_time || undefined,
+            tags: r.tags || []
+          };
+          const idx = prev.findIndex(t => t.id === task.id);
+          if (idx === -1) return [...prev, task];
+          const copy = [...prev];
+          copy[idx] = { ...copy[idx], ...task };
+          return copy;
+        });
+      })
+      .subscribe();
+    return () => {
+      active = false;
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   // Listen for cross-tab updates
   useEffect(() => {

@@ -2,10 +2,28 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Theme variables */
+:root {
+	--color-bg: #f8fafc; /* slate-50 */
+	--color-bg-alt: #ffffff; /* white */
+	--color-border: #e2e8f0; /* slate-200 */
+	--color-text: #1e293b; /* slate-800 */
+	--color-muted: #64748b; /* slate-500 */
+}
+
+.dark {
+	--color-bg: #0f172a; /* slate-900 */
+	--color-bg-alt: #1e293b; /* slate-800 */
+	--color-border: #334155; /* slate-700 */
+	--color-text: #f1f5f9; /* slate-100 */
+	--color-muted: #64748b; /* slate-500 (unchanged) */
+}
+
 /* Dark mode scrollbar styling */
-* {
+/* Scrollbars only styled in dark mode (keep native in light) */
+.dark * {
 	scrollbar-width: thin;
-	scrollbar-color: #374151 #111827; /* thumb track */
+	scrollbar-color: #374151 #111827;
 }
 
 /* WebKit */
@@ -13,25 +31,15 @@
 	width: 10px;
 	height: 10px;
 }
-::-webkit-scrollbar-track {
-	background: #111827; /* gray-900 */
-}
-::-webkit-scrollbar-thumb {
-	background: linear-gradient(to bottom, #374151, #1f2937); /* gray-700 -> gray-800 */
-	border-radius: 8px;
-	border: 2px solid #111827;
-}
-::-webkit-scrollbar-thumb:hover {
-	background: linear-gradient(to bottom, #4b5563, #374151); /* lighten on hover */
-}
-::-webkit-scrollbar-corner {
-	background: #111827;
-}
+ .dark ::-webkit-scrollbar-track { background: #111827; }
+ .dark ::-webkit-scrollbar-thumb { background: linear-gradient(to bottom, #374151, #1f2937); border-radius: 8px; border: 2px solid #111827; }
+ .dark ::-webkit-scrollbar-thumb:hover { background: linear-gradient(to bottom, #4b5563, #374151); }
+ .dark ::-webkit-scrollbar-corner { background: #111827; }
 
 /* Narrower scrollbars inside specific panels if desired */
-.thin-scrollbar::-webkit-scrollbar {
+.dark .thin-scrollbar::-webkit-scrollbar {
 	width: 6px;
 }
-.thin-scrollbar::-webkit-scrollbar-thumb {
+.dark .thin-scrollbar::-webkit-scrollbar-thumb {
 	border-width: 1px;
 }

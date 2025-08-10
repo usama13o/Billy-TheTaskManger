@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTasks } from './hooks/useTasks';
 import { BrainDump } from './components/BrainDump';
 import { WeeklyBoard } from './components/WeeklyBoard';
@@ -35,6 +35,18 @@ function App() {
 
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [draggedTask, setDraggedTask] = useState<Task | null>(null);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof window === 'undefined') return 'dark';
+    return (localStorage.getItem('btm.theme') as 'light' | 'dark') || 'dark';
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'dark') root.classList.add('dark'); else root.classList.remove('dark');
+    localStorage.setItem('btm.theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -88,7 +100,7 @@ function App() {
   };
 
   return (
-    <div className="h-screen bg-gray-900 flex flex-col">
+  <div className="h-screen flex flex-col transition-colors bg-[var(--color-bg)] text-[var(--color-text)]">
       <DndContext
         sensors={sensors}
         onDragStart={handleDragStart}
@@ -99,6 +111,8 @@ function App() {
           onViewModeChange={setViewMode}
           currentWeekStart={currentWeekStart}
           onNavigateWeek={navigateWeek}
+      theme={theme}
+      onToggleTheme={toggleTheme}
         />
 
         <div className="flex flex-1 overflow-hidden">
