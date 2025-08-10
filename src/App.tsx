@@ -6,6 +6,7 @@ import { CalendarView } from './components/CalendarView';
 import { TaskModal } from './components/TaskModal';
 import { Header } from './components/Header';
 import { Task } from './types';
+import { generateWeeklySummary } from './lib/aiSummary';
 import { 
   DndContext, 
   DragEndEvent, 
@@ -46,6 +47,9 @@ function App() {
   const [exportMode, setExportMode] = useState<'week' | 'month'>('week');
   const [exportPeriodStart, setExportPeriodStart] = useState<string>('');
   const [exportDownloadUrl, setExportDownloadUrl] = useState<string | null>(null);
+  const [showSummary, setShowSummary] = useState(false);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryText, setSummaryText] = useState<string>('');
 
   useEffect(() => {
     const root = document.documentElement;
@@ -116,6 +120,24 @@ function App() {
     const blob = new Blob([JSON.stringify(summary, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     setExportDownloadUrl(url);
+  };
+
+  const openSummary = async () => {
+    setShowSummary(true);
+    setSummaryText('');
+    setSummaryLoading(true);
+    try {
+      const startISO = currentWeekStart.toISOString().substring(0,10);
+      const end = new Date(currentWeekStart); end.setDate(end.getDate()+7);
+      const endISO = end.toISOString().substring(0,10);
+      const weekTasks = weekDays.flatMap(d => d.tasks).filter(t => t.scheduledDate);
+      const res = await generateWeeklySummary({ tasks: weekTasks, startISO, endISO });
+      setSummaryText(res.summary);
+    } catch (e:any) {
+      setSummaryText('Failed to generate summary: ' + e.message);
+    } finally {
+      setSummaryLoading(false);
+    }
   };
 
   const downloadFile = () => {
@@ -204,6 +226,7 @@ function App() {
       onToggleTheme={toggleTheme}
           onToday={jumpToToday}
           onOpenExport={() => setShowExport(true)}
+          onGenerateSummary={openSummary}
         />
         {showNotice && notice && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -319,6 +342,37 @@ function App() {
             </div>
             <button
               onClick={()=>setShowExport(false)}
+              className="absolute top-2 right-2 text-gray-400 hover:text-white"
+              aria-label="Close"
+            >✕</button>
+          </div>
+        </div>
+      )}
+
+      {showSummary && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60" onClick={()=>setShowSummary(false)} />
+          <div className="relative w-full max-w-lg rounded-lg bg-gray-900 border border-gray-700 p-5 space-y-4">
+            <h3 className="text-lg font-semibold text-white">Weekly AI Summary</h3>
+            {summaryLoading && <p className="text-sm text-gray-400 animate-pulse">Generating summary...</p>}
+            {!summaryLoading && (
+              <div className="prose prose-invert max-h-[50vh] overflow-y-auto text-sm whitespace-pre-wrap">
+                {summaryText || 'No summary yet.'}
+              </div>
+            )}
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={()=>openSummary()}
+                disabled={summaryLoading}
+                className="px-4 py-2 rounded-md bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white text-sm"
+              >Regenerate</button>
+              <button
+                onClick={()=>setShowSummary(false)}
+                className="px-4 py-2 rounded-md bg-gray-600 hover:bg-gray-500 text-white text-sm"
+              >Close</button>
+            </div>
+            <button
+              onClick={()=>setShowSummary(false)}
               className="absolute top-2 right-2 text-gray-400 hover:text-white"
               aria-label="Close"
             >✕</button>

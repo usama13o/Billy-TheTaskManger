@@ -12,6 +12,7 @@ interface HeaderProps {
   onToggleTheme: () => void;
   onToday: () => void;
   onOpenExport: () => void;
+  onGenerateSummary: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -22,7 +23,8 @@ export const Header: React.FC<HeaderProps> = ({
   theme,
   onToggleTheme,
   onToday,
-  onOpenExport
+  onOpenExport,
+  onGenerateSummary
 }) => {
   return (
     <div className="p-4 border-b transition-colors bg-[var(--color-bg)] border-[var(--color-border)]">
@@ -62,6 +64,13 @@ export const Header: React.FC<HeaderProps> = ({
             title="Export tasks"
           >
             <span>Export</span>
+          </button>
+          <button
+            onClick={onGenerateSummary}
+            className="px-3 py-2 rounded-md border text-sm font-medium flex items-center gap-2 border-[var(--color-border)] text-[var(--color-text)] hover:bg-[var(--color-bg-alt)]"
+            title="Weekly AI Summary"
+          >
+            <span>AI Summary</span>
           </button>
           <button
             onClick={onToggleTheme}
