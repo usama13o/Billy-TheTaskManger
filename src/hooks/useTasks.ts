@@ -150,20 +150,26 @@ export const useTasks = () => {
   }, []);
 
   const updateTask = useCallback((taskId: string, updates: Partial<Task>) => {
-    setTasks(prev => prev.map(task => 
-      task.id === taskId ? { ...task, ...updates } : task
-    ));
+    setTasks(prev => prev.map(task => task.id === taskId ? { ...task, ...updates } : task));
     if (SUPA_ENABLED) {
-      const payload: any = { id: taskId };
-      if (updates.title !== undefined) payload.title = updates.title;
-      if (updates.description !== undefined) payload.description = updates.description;
-      if (updates.timeEstimate !== undefined) payload.time_estimate = updates.timeEstimate;
-      if (updates.priority !== undefined) payload.priority = updates.priority;
-      if (updates.status !== undefined) payload.status = updates.status;
-      if (updates.scheduledDate !== undefined) payload.scheduled_date = updates.scheduledDate;
-      if (updates.scheduledTime !== undefined) payload.scheduled_time = updates.scheduledTime;
-      if (updates.tags !== undefined) payload.tags = updates.tags;
-  supabase.from('tasks').upsert(payload).then(({ error }: { error: any }) => logErr('updateTask', error));
+      // Build full row to avoid NOT NULL constraint issues if record missing remotely
+      const current = tasks.find(t => t.id === taskId);
+      const merged: Task | undefined = current ? { ...current, ...updates } : undefined;
+      if (merged) {
+        const fullRow: any = {
+          id: merged.id,
+          title: merged.title,
+          description: merged.description || '',
+          time_estimate: merged.timeEstimate,
+          priority: merged.priority,
+          status: merged.status,
+          created_at: merged.createdAt.toISOString(),
+          scheduled_date: merged.scheduledDate,
+          scheduled_time: merged.scheduledTime,
+          tags: merged.tags
+        };
+        supabase.from('tasks').upsert(fullRow).then(({ error }: { error: any }) => logErr('updateTask', error));
+      }
     }
   }, []);
 
@@ -194,10 +200,25 @@ export const useTasks = () => {
       return [...remaining, updated];
     });
     if (SUPA_ENABLED) {
-      const payload: any = { id: taskId, scheduled_date: scheduledDate, scheduled_time: scheduledTime };
-      supabase.from('tasks').upsert(payload).then(({ error }: { error: any }) => logErr('moveTask', error));
+      const t = tasks.find(t => t.id === taskId);
+      if (t) {
+        const merged: Task = { ...t, scheduledDate, scheduledTime };
+        const fullRow: any = {
+          id: merged.id,
+          title: merged.title,
+          description: merged.description || '',
+          time_estimate: merged.timeEstimate,
+          priority: merged.priority,
+          status: merged.status,
+          created_at: merged.createdAt.toISOString(),
+          scheduled_date: merged.scheduledDate,
+          scheduled_time: merged.scheduledTime,
+          tags: merged.tags
+        };
+        supabase.from('tasks').upsert(fullRow).then(({ error }: { error: any }) => logErr('moveTask', error));
+      }
     }
-  }, []);
+  }, [tasks]);
 
   const navigateWeek = useCallback((direction: 'prev' | 'next') => {
     setCurrentWeekStart(prev => addDays(prev, direction === 'next' ? 7 : -7));
