@@ -11,6 +11,7 @@ interface HeaderProps {
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
   onToday: () => void;
+  onOpenExport: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -20,7 +21,8 @@ export const Header: React.FC<HeaderProps> = ({
   onNavigateWeek,
   theme,
   onToggleTheme,
-  onToday
+  onToday,
+  onOpenExport
 }) => {
   return (
     <div className="p-4 border-b transition-colors bg-[var(--color-bg)] border-[var(--color-border)]">
@@ -54,6 +56,13 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={onOpenExport}
+            className="px-3 py-2 rounded-md border text-sm font-medium flex items-center gap-2 border-[var(--color-border)] text-[var(--color-text)] hover:bg-[var(--color-bg-alt)]"
+            title="Export tasks"
+          >
+            <span>Export</span>
+          </button>
           <button
             onClick={onToggleTheme}
             className="p-2 rounded-md border text-sm flex items-center gap-1 transition-colors border-[var(--color-border)] text-[var(--color-text)] hover:bg-[var(--color-bg-alt)]"
