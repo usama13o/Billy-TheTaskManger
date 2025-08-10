@@ -47,6 +47,7 @@ function App() {
   const [exportMode, setExportMode] = useState<'week' | 'month'>('week');
   const [exportPeriodStart, setExportPeriodStart] = useState<string>('');
   const [exportDownloadUrl, setExportDownloadUrl] = useState<string | null>(null);
+  const [exportJsonText, setExportJsonText] = useState<string>('');
   const [showSummary, setShowSummary] = useState(false);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryText, setSummaryText] = useState<string>('');
@@ -117,7 +118,9 @@ function App() {
         tags: t.tags
       }))
     };
-    const blob = new Blob([JSON.stringify(summary, null, 2)], { type: 'application/json' });
+  const jsonString = JSON.stringify(summary, null, 2);
+  setExportJsonText(jsonString);
+  const blob = new Blob([jsonString], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     setExportDownloadUrl(url);
   };
@@ -327,13 +330,24 @@ function App() {
                 onClick={generateExport}
                 className="w-full py-2 rounded-md bg-green-600 hover:bg-green-500 text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >Generate JSON</button>
-              {exportDownloadUrl && (
-                <div className="p-3 rounded-md bg-gray-800 border border-gray-700 space-y-3">
-                  <p className="text-xs text-gray-300">Preview ready. Download your export.</p>
-                  <button
-                    onClick={downloadFile}
-                    className="w-full py-2 rounded-md bg-green-500 hover:bg-green-400 text-white text-sm font-medium"
-                  >Download</button>
+              {exportJsonText && (
+                <div className="p-3 rounded-md bg-gray-800 border border-gray-700 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-gray-300">Preview (truncated if long)</p>
+                    <button
+                      onClick={() => { navigator.clipboard.writeText(exportJsonText); }}
+                      className="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded-md text-gray-200"
+                    >Copy</button>
+                  </div>
+                  <pre className="max-h-40 overflow-auto text-[10px] leading-snug whitespace-pre-wrap bg-gray-900 p-2 rounded-md text-gray-300">
+{exportJsonText.length > 4000 ? exportJsonText.slice(0,4000) + '\n... (truncated)' : exportJsonText}
+                  </pre>
+                  {exportDownloadUrl && (
+                    <button
+                      onClick={downloadFile}
+                      className="w-full py-2 rounded-md bg-green-500 hover:bg-green-400 text-white text-sm font-medium"
+                    >Download JSON</button>
+                  )}
                 </div>
               )}
               <div className="text-xs text-gray-500 leading-relaxed">
