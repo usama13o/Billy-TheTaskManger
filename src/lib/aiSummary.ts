@@ -45,7 +45,6 @@ export async function generateWeeklySummary(req: WeeklySummaryRequest): Promise<
       { role: 'system', content: systemPrompt },
       { role: 'user', content: JSON.stringify(userContent) }
     ],
-    temperature: 0.4,
     max_completion_tokens: 600
   });
 
