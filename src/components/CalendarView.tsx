@@ -155,17 +155,10 @@ const TaskBlock: React.FC<TaskBlockProps> = ({ task, slotHeight, onToggleComplet
         if (resizing || wasResizingRef.current) return;
         onEditTask(task);
       }}
+      {...listeners}
+      {...attributes}
     >
-      <div className="p-2 pt-0 h-full flex flex-col gap-1 select-none text-xs text-gray-200">
-        {/* Drag Handle */}
-        <div
-          className={`h-2 w-full cursor-grab active:cursor-grabbing flex items-center justify-center text-[8px] tracking-wider ${styleSet.handle}`}
-          {...listeners}
-          {...attributes}
-          onClick={(e) => e.stopPropagation()}
-        >
-          ⋯
-        </div>
+      <div className="p-2 h-full flex flex-col gap-1 select-none text-xs text-gray-200">
         <div className="flex items-start justify-between gap-2 mt-0.5">
           <h4 className="font-medium leading-tight line-clamp-3 flex-1">{task.title}</h4>
           <button
@@ -251,7 +244,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   onEditTask,
   updateTask
 }) => {
-  const slotHeight = 30;
+  // Increase slot height for better readability
+  const slotHeight = 40;
   const START_HOUR = 9;
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const initialScrollDone = React.useRef(false);
@@ -393,6 +387,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                         task={task}
                         onToggleComplete={onToggleComplete}
                         onEdit={onEditTask}
+                        draggable={true}
                       />
                     ))}
                   </div>
@@ -415,7 +410,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                           <TaskCard
                             task={task}
                             onToggleComplete={onToggleComplete}
-                            onEdit={onEditTask}
+                              onEdit={onEditTask}
+                              draggable={false}
                           />
                         </div>
                       ))}

@@ -9,26 +9,31 @@ interface TaskCardProps {
   onToggleComplete: (taskId: string) => void;
   onEdit: (task: Task) => void;
   isDragging?: boolean;
+  draggable?: boolean; // disable drag when false (e.g., sidebar preview)
 }
 
 export const TaskCard: React.FC<TaskCardProps> = ({ 
   task, 
   onToggleComplete, 
   onEdit, 
-  isDragging = false 
+  isDragging = false,
+  draggable = true
 }) => {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-  } = useSortable({ id: task.id });
+  let attributes: any = {};
+  let listeners: any = {};
+  let setNodeRef: (el: HTMLElement | null) => void = () => {};
+  let style: any = undefined;
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
+  if (draggable) {
+    const sortable = useSortable({ id: task.id });
+    attributes = sortable.attributes;
+    listeners = sortable.listeners;
+    setNodeRef = sortable.setNodeRef;
+    style = {
+      transform: CSS.Transform.toString(sortable.transform),
+      transition: sortable.transition,
+    };
+  }
 
   const getPriorityColor = (priority: Task['priority']) => {
     switch (priority) {
@@ -41,13 +46,13 @@ export const TaskCard: React.FC<TaskCardProps> = ({
 
   return (
     <div
-      ref={setNodeRef}
+      ref={draggable ? setNodeRef : undefined}
       style={style}
-      {...attributes}
-      {...listeners}
+      {...(draggable ? attributes : {})}
+      {...(draggable ? listeners : {})}
       className={`
         bg-gray-800 rounded-lg p-3 border-l-4 ${getPriorityColor(task.priority)}
-        cursor-grab active:cursor-grabbing transition-all duration-200
+        ${draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} transition-all duration-200
         hover:bg-gray-750 hover:scale-[1.02] group
         ${isDragging ? 'opacity-50 scale-95' : ''}
       `}

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Task, DayColumn, ViewMode } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import { format, addDays, startOfWeek } from 'date-fns';
@@ -47,7 +47,22 @@ const INITIAL_TASKS: Task[] = [
 ];
 
 export const useTasks = () => {
-  const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
+  const STORAGE_KEY = 'taskManager.tasks.v1';
+
+  const [tasks, setTasks] = useState<Task[]>(() => {
+    if (typeof window === 'undefined') return INITIAL_TASKS; // SSR safety (not used here but defensive)
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return INITIAL_TASKS;
+      const parsed = JSON.parse(raw) as any[];
+      return parsed.map(t => ({
+        ...t,
+        createdAt: t.createdAt ? new Date(t.createdAt) : new Date()
+      })) as Task[];
+    } catch {
+      return INITIAL_TASKS;
+    }
+  });
   const [viewMode, setViewMode] = useState<ViewMode>('board');
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<string>(() => 
     format(new Date(), 'yyyy-MM-dd')
@@ -110,6 +125,30 @@ export const useTasks = () => {
   const setSelectedDate = useCallback((date: string) => {
     setSelectedCalendarDate(date);
   }, []);
+
+  // Persist tasks to localStorage whenever they change
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+      }
+    } catch {/* ignore quota errors for now */}
+  }, [tasks]);
+
+  // Listen for cross-tab updates
+  useEffect(() => {
+    const listener = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue) as any[];
+          setTasks(parsed.map(t => ({ ...t, createdAt: t.createdAt ? new Date(t.createdAt) : new Date() })) as Task[]);
+        } catch {/* ignore */}
+      }
+    };
+    window.addEventListener('storage', listener);
+    return () => window.removeEventListener('storage', listener);
+  }, []);
+
   return {
     tasks,
     brainDumpTasks,
