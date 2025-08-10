@@ -89,6 +89,25 @@ export const useTasks = () => {
   });
 
   const suppressNextUpsertRef = useRef(false); // skip bulk upsert when state change originated from remote
+  // Track last synced task content (simple hash) to avoid re-uploading identical rows
+  const lastSyncedHashesRef = useRef<Record<string, string>>({});
+  const pendingDeletionIdsRef = useRef<Set<string>>(new Set());
+
+  const hashTask = (t: Task) => {
+    // Stable JSON of fields persisted remotely (order matters). Keep only fields stored in DB.
+    return JSON.stringify({
+      id: t.id,
+      title: t.title,
+      description: t.description || '',
+      timeEstimate: t.timeEstimate,
+      priority: t.priority,
+      status: t.status,
+      createdAt: t.createdAt.toISOString(),
+      scheduledDate: t.scheduledDate || null,
+      scheduledTime: t.scheduledTime || null,
+      tags: t.tags || []
+    });
+  };
 
   const logErr = (context: string, error: any) => {
     if (error) {
@@ -151,7 +170,16 @@ export const useTasks = () => {
   const deleteTask = useCallback((taskId: string) => {
     setTasks(prev => prev.filter(task => task.id !== taskId));
     if (SUPA_ENABLED) {
-  supabase.from('tasks').delete().eq('id', taskId).then(({ error }: { error: any }) => logErr('deleteTask', error));
+      // Queue deletion in case offline; attempt immediate delete
+      pendingDeletionIdsRef.current.add(taskId);
+      supabase.from('tasks').delete().eq('id', taskId).then(({ error }: { error: any }) => {
+        logErr('deleteTask', error);
+        if (!error) {
+          // Remove from last synced map so it won't resurrect
+          delete lastSyncedHashesRef.current[taskId];
+          pendingDeletionIdsRef.current.delete(taskId);
+        }
+      });
     }
   }, []);
 
@@ -192,22 +220,49 @@ export const useTasks = () => {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
       }
     } catch {/* ignore quota errors for now */}
-    if (SUPA_ENABLED && tasks.length > 0 && !suppressNextUpsertRef.current) {
-      // Basic push (non-conflict resolution) for any offline changes when tasks mutate.
-      // Could be optimized with diffing.
-      const rows = tasks.map(t => ({
-        id: t.id,
-        title: t.title,
-        description: t.description,
-        time_estimate: t.timeEstimate,
-        priority: t.priority,
-        status: t.status,
-        created_at: t.createdAt.toISOString(),
-        scheduled_date: t.scheduledDate,
-        scheduled_time: t.scheduledTime,
-        tags: t.tags
-      }));
-  supabase.from('tasks').upsert(rows).then(({ error }: { error: any }) => logErr('bulkUpsert', error));
+    if (SUPA_ENABLED && !suppressNextUpsertRef.current) {
+      // Diff detection: only send changed/new tasks
+      const changed: any[] = [];
+      for (const t of tasks) {
+        const h = hashTask(t);
+        if (lastSyncedHashesRef.current[t.id] !== h) {
+          changed.push({
+            id: t.id,
+            title: t.title,
+            description: t.description,
+            time_estimate: t.timeEstimate,
+            priority: t.priority,
+            status: t.status,
+            created_at: t.createdAt.toISOString(),
+            scheduled_date: t.scheduledDate,
+            scheduled_time: t.scheduledTime,
+            tags: t.tags
+          });
+        }
+      }
+      const pendingDeletes = Array.from(pendingDeletionIdsRef.current);
+      const performSync = async () => {
+        if (changed.length > 0) {
+          const { error } = await supabase.from('tasks').upsert(changed);
+          logErr('bulkDiffUpsert', error);
+          if (!error) {
+            for (const t of tasks) {
+              lastSyncedHashesRef.current[t.id] = hashTask(t);
+            }
+          }
+        }
+        if (pendingDeletes.length > 0) {
+          const { error } = await supabase.from('tasks').delete().in('id', pendingDeletes);
+          logErr('bulkDeletes', error);
+          if (!error) {
+            for (const id of pendingDeletes) {
+              pendingDeletionIdsRef.current.delete(id);
+              delete lastSyncedHashesRef.current[id];
+            }
+          }
+        }
+      };
+      if (changed.length > 0 || pendingDeletes.length > 0) performSync();
     }
     if (suppressNextUpsertRef.current) {
       suppressNextUpsertRef.current = false; // reset after skipping
@@ -247,6 +302,8 @@ export const useTasks = () => {
         setTasks(prev => {
           if (payload.eventType === 'DELETE') {
             suppressNextUpsertRef.current = true;
+            pendingDeletionIdsRef.current.delete(r.id);
+            delete lastSyncedHashesRef.current[r.id];
             return prev.filter(t => t.id !== r.id);
           }
           const task: Task = {
@@ -261,12 +318,21 @@ export const useTasks = () => {
             scheduledTime: r.scheduled_time || undefined,
             tags: r.tags || []
           };
-          const idx = prev.findIndex(t => t.id === task.id);
-          suppressNextUpsertRef.current = true; // skip bulk push for realtime reflection
-          if (idx === -1) return [...prev, task];
-          const copy = [...prev];
-          copy[idx] = { ...copy[idx], ...task };
-          return copy;
+          const existing = prev.find(t => t.id === task.id);
+            const remoteHash = hashTask(task);
+          if (existing) {
+            // If identical, ignore to prevent loops
+            if (hashTask(existing) === remoteHash) {
+              return prev; // no change
+            }
+            suppressNextUpsertRef.current = true;
+            lastSyncedHashesRef.current[task.id] = remoteHash;
+            return prev.map(t => t.id === task.id ? { ...t, ...task } : t);
+          } else {
+            suppressNextUpsertRef.current = true;
+            lastSyncedHashesRef.current[task.id] = remoteHash;
+            return [...prev, task];
+          }
         });
       })
       .subscribe();
