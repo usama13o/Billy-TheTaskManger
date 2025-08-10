@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Task } from '../types';
 import { TaskCard } from './TaskCard';
 import { Plus, Brain } from 'lucide-react';
@@ -19,27 +19,44 @@ export const BrainDump: React.FC<BrainDumpProps> = ({
 }) => {
   const [isAdding, setIsAdding] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
+  const addBoxRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   const { setNodeRef } = useDroppable({
     id: 'brain-dump'
   });
 
   const handleAddTask = () => {
-    if (newTaskTitle.trim()) {
-      onAddTask({ title: newTaskTitle.trim() });
-      setNewTaskTitle('');
-      setIsAdding(false);
-    }
+    const title = newTaskTitle.trim();
+    if (!title) return;
+    onAddTask({ title });
+    setNewTaskTitle('');
+    // stay in adding mode for rapid entry
+    requestAnimationFrame(() => inputRef.current?.focus());
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
+      e.preventDefault();
       handleAddTask();
     } else if (e.key === 'Escape') {
       setIsAdding(false);
       setNewTaskTitle('');
     }
   };
+
+  // Click-away to exit add mode
+  useEffect(() => {
+    if (!isAdding) return;
+    const handler = (e: MouseEvent) => {
+      if (addBoxRef.current && !addBoxRef.current.contains(e.target as Node)) {
+        setIsAdding(false);
+        setNewTaskTitle('');
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [isAdding]);
 
   return (
     <div className="w-80 bg-gray-900 border-r border-gray-700 flex flex-col h-full">
@@ -50,7 +67,7 @@ export const BrainDump: React.FC<BrainDumpProps> = ({
         </div>
         
         {isAdding ? (
-          <div className="space-y-2">
+          <div ref={addBoxRef} className="space-y-2">
             <input
               type="text"
               value={newTaskTitle}
@@ -58,6 +75,7 @@ export const BrainDump: React.FC<BrainDumpProps> = ({
               onKeyDown={handleKeyPress}
               placeholder="Enter task title..."
               className="w-full p-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-green-400"
+              ref={inputRef}
               autoFocus
             />
             <div className="flex gap-2">
