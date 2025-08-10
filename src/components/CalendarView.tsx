@@ -37,6 +37,8 @@ const TaskBlock: React.FC<TaskBlockProps> = ({ task, slotHeight, onToggleComplet
   const [previewMinutes, setPreviewMinutes] = useState<number | null>(null);
   const startYRef = useRef(0);
   const originalMinutesRef = useRef(0);
+  // Track whether last interaction was a resize to suppress unintended click -> edit
+  const wasResizingRef = useRef(false);
 
   const startHour = task.scheduledTime ? parseInt(task.scheduledTime.split(':')[0]) : 0;
   const startMinute = task.scheduledTime ? parseInt(task.scheduledTime.split(':')[1]) : 0;
@@ -50,6 +52,7 @@ const TaskBlock: React.FC<TaskBlockProps> = ({ task, slotHeight, onToggleComplet
   const handleResizeStart = (e: React.PointerEvent) => {
     e.stopPropagation();
     setResizing(true);
+  wasResizingRef.current = true;
     startYRef.current = e.clientY;
     originalMinutesRef.current = task.timeEstimate ?? 30;
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
@@ -70,6 +73,8 @@ const TaskBlock: React.FC<TaskBlockProps> = ({ task, slotHeight, onToggleComplet
       updateTask(task.id, { timeEstimate: previewMinutes });
     }
     setPreviewMinutes(null);
+  // Allow a short window where click is ignored so mouseup doesn't trigger edit
+  setTimeout(() => { wasResizingRef.current = false; }, 80);
   }, [resizing, previewMinutes, task.id, task.timeEstimate, updateTask]);
 
   useEffect(() => {
@@ -92,7 +97,11 @@ const TaskBlock: React.FC<TaskBlockProps> = ({ task, slotHeight, onToggleComplet
     <div
       className={`absolute left-1 right-1 rounded-md border border-green-500/40 bg-green-500/15 backdrop-blur-sm overflow-hidden group ${resizing ? 'ring-2 ring-green-400' : ''}`}
       style={{ top, height }}
-      onClick={(e) => { e.stopPropagation(); onEditTask(task); }}
+      onClick={(e) => {
+        e.stopPropagation();
+        if (resizing || wasResizingRef.current) return; // suppress edit when resizing
+        onEditTask(task);
+      }}
     >
       <div className="p-2 h-full flex flex-col gap-1 select-none text-xs text-gray-200">
         <div className="flex items-start justify-between gap-2">
@@ -182,6 +191,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 }) => {
   // 30-minute time slots (48 slots)
   const slotHeight = 30; // px per 30m
+  const START_HOUR = 9; // default scroll-to hour
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+  const initialScrollDone = React.useRef(false);
+
   const timeSlots: string[] = Array.from({ length: 24 * 2 }, (_, i) => {
     const hour = Math.floor(i / 2);
     const min = i % 2 === 0 ? '00' : '30';
@@ -197,10 +210,19 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const selectedDayTasks = selectedDay?.tasks || [];
   const unscheduledTasks = selectedDayTasks.filter(t => !t.scheduledTime);
 
+  // Scroll to START_HOUR once on mount
+  React.useEffect(() => {
+    if (!initialScrollDone.current && scrollRef.current) {
+      const target = (START_HOUR * 2) * slotHeight - slotHeight * 2; // small offset so 9AM label not flush top
+      scrollRef.current.scrollTop = Math.max(0, target);
+      initialScrollDone.current = true;
+    }
+  }, [slotHeight]);
+
   return (
     <div className="flex-1 bg-gray-900 flex overflow-hidden">
       {/* Calendar Grid */}
-      <div className="flex-1 overflow-auto">
+  <div ref={scrollRef} className="flex-1 overflow-auto">
         <div className="min-w-max">
           {/* Header */}
           <div className="sticky top-0 bg-gray-900 border-b border-gray-700 z-30">
