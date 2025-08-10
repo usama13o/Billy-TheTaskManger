@@ -41,6 +41,7 @@ function App() {
     return (localStorage.getItem('btm.theme') as 'light' | 'dark') || 'dark';
   });
   const [notice, setNotice] = useState<string | null>(null);
+  const [showNotice, setShowNotice] = useState(false);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -49,14 +50,9 @@ function App() {
   }, [theme]);
 
   const toggleTheme = () => {
-    setNotice(null);
-    setTimeout(() => setNotice(null), 0);
-    setNotice(null);
-    setTimeout(() => setNotice(null), 0); // ensure cleared
     if (theme === 'dark') {
-      setNotice("you're better than this – go back to the dark side ✨");
-      // Do NOT switch to light; playful rejection
-      setTimeout(() => setNotice(null), 4000);
+      setNotice("You're better than this – return to the dark side. 🌑 (Light mode is disabled here.)");
+      setShowNotice(true);
       return;
     }
     setTheme('dark');
@@ -129,9 +125,24 @@ function App() {
       onToggleTheme={toggleTheme}
           onToday={jumpToToday}
         />
-        {notice && (
-          <div className="mx-4 mt-2 mb-0 rounded-md bg-gradient-to-r from-fuchsia-600/70 to-purple-700/70 dark:from-fuchsia-600/30 dark:to-purple-800/30 border border-fuchsia-400/40 px-4 py-2 text-xs text-white backdrop-blur-sm shadow">
-            {notice}
+        {showNotice && notice && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={()=>setShowNotice(false)} />
+            <div className="relative max-w-sm w-full rounded-xl border border-fuchsia-400/40 bg-gradient-to-br from-gray-900 via-purple-900/80 to-fuchsia-900/60 p-5 shadow-2xl text-fuchsia-100 ring-1 ring-fuchsia-500/30">
+              <h3 className="text-sm font-semibold mb-2 tracking-wide">Dark Side Protection</h3>
+              <p className="text-xs leading-relaxed mb-4 text-fuchsia-200/90">{notice}</p>
+              <div className="flex justify-end gap-2 text-xs">
+                <button
+                  onClick={()=>setShowNotice(false)}
+                  className="px-3 py-1.5 rounded-md bg-fuchsia-600/80 hover:bg-fuchsia-600 text-white font-medium shadow hover:shadow-lg transition"
+                >Got it</button>
+              </div>
+              <button
+                onClick={()=>setShowNotice(false)}
+                className="absolute top-2 right-2 text-fuchsia-300 hover:text-white transition"
+                aria-label="Close"
+              >✕</button>
+            </div>
           </div>
         )}
 
