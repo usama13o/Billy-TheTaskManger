@@ -46,7 +46,7 @@ export async function generateWeeklySummary(req: WeeklySummaryRequest): Promise<
       { role: 'user', content: JSON.stringify(userContent) }
     ],
     temperature: 0.4,
-    max_tokens: 600
+    max_completion_tokens: 600
   });
 
   const text = completion.choices?.[0]?.message?.content || 'No summary generated.';
