@@ -25,7 +25,7 @@ export async function generateWeeklySummary(req: WeeklySummaryRequest): Promise<
   const pending = req.tasks.filter(t => t.status !== 'completed');
   const totalMinutes = req.tasks.reduce((a,t)=>a + (t.timeEstimate||0),0);
 
-  const systemPrompt = `You are an assistant that writes concise weekly progress summaries.\nRead the json of the tasks manger and Return markdown with sections: Overview, Completed, In Progress / Remaining, Metrics.\nBe succinct (under 250 words). Report on everything u recived if nothing say looks like u had a chill week`;
+  const systemPrompt = `"You are an assistant who writes concise weekly progress summaries. Read the JSON from the task manager and return a Markdown document with the following sections: Overview, Completed, In Progress / Remaining, and Metrics. Be succinct, keeping it under 250 words. Report on all received tasks; if there are none, start with a summary of what was achieved. Try to understand the purpose of each task and provide an overview of what the user has accomplished this week."`;
 
   const userContent = {
     week: { start: req.startISO, end: req.endISO },
