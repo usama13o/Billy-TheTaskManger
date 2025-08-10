@@ -1,3 +1,37 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Dark mode scrollbar styling */
+* {
+	scrollbar-width: thin;
+	scrollbar-color: #374151 #111827; /* thumb track */
+}
+
+/* WebKit */
+::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+::-webkit-scrollbar-track {
+	background: #111827; /* gray-900 */
+}
+::-webkit-scrollbar-thumb {
+	background: linear-gradient(to bottom, #374151, #1f2937); /* gray-700 -> gray-800 */
+	border-radius: 8px;
+	border: 2px solid #111827;
+}
+::-webkit-scrollbar-thumb:hover {
+	background: linear-gradient(to bottom, #4b5563, #374151); /* lighten on hover */
+}
+::-webkit-scrollbar-corner {
+	background: #111827;
+}
+
+/* Narrower scrollbars inside specific panels if desired */
+.thin-scrollbar::-webkit-scrollbar {
+	width: 6px;
+}
+.thin-scrollbar::-webkit-scrollbar-thumb {
+	border-width: 1px;
+}

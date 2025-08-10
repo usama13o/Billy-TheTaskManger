@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { DayColumn, Task } from '../types';
 import { TaskCard } from './TaskCard';
-import { useDroppable } from '@dnd-kit/core';
+import { useDroppable, useDraggable } from '@dnd-kit/core';
 import { Clock, Calendar as CalendarIcon } from 'lucide-react';
 
 interface CalendarViewProps {
@@ -39,6 +39,58 @@ const TaskBlock: React.FC<TaskBlockProps> = ({ task, slotHeight, onToggleComplet
   const originalMinutesRef = useRef(0);
   // Track whether last interaction was a resize to suppress unintended click -> edit
   const wasResizingRef = useRef(false);
+
+  // Priority-based styling so calendar blocks retain card colors
+  const priorityStyles: Record<string, { container: string; tagBg: string; tagText: string; timeText: string; buttonIdle: string; buttonDone: string; ring: string; handle: string; }> = {
+    high: {
+      container: 'border-red-500/50 bg-red-500/15',
+      tagBg: 'bg-red-500/25',
+      tagText: 'text-red-300',
+      timeText: 'text-red-300',
+      buttonIdle: 'border-red-400 hover:bg-red-400/20',
+      buttonDone: 'bg-red-400 border-red-300 text-red-900',
+      ring: 'ring-red-400',
+      handle: 'group-hover:bg-red-400/20 text-red-300'
+    },
+    medium: {
+      container: 'border-yellow-500/50 bg-yellow-500/15',
+      tagBg: 'bg-yellow-500/25',
+      tagText: 'text-yellow-300',
+      timeText: 'text-yellow-300',
+      buttonIdle: 'border-yellow-400 hover:bg-yellow-400/20',
+      buttonDone: 'bg-yellow-400 border-yellow-300 text-yellow-900',
+      ring: 'ring-yellow-400',
+      handle: 'group-hover:bg-yellow-400/20 text-yellow-300'
+    },
+    low: {
+      container: 'border-green-500/50 bg-green-500/15',
+      tagBg: 'bg-green-500/25',
+      tagText: 'text-green-300',
+      timeText: 'text-green-300',
+      buttonIdle: 'border-green-400 hover:bg-green-400/20',
+      buttonDone: 'bg-green-400 border-green-300 text-green-900',
+      ring: 'ring-green-400',
+      handle: 'group-hover:bg-green-400/20 text-green-300'
+    },
+    default: {
+      container: 'border-gray-500/50 bg-gray-500/15',
+      tagBg: 'bg-gray-500/25',
+      tagText: 'text-gray-300',
+      timeText: 'text-gray-300',
+      buttonIdle: 'border-gray-400 hover:bg-gray-400/20',
+      buttonDone: 'bg-gray-400 border-gray-300 text-gray-900',
+      ring: 'ring-gray-400',
+      handle: 'group-hover:bg-gray-400/20 text-gray-300'
+    }
+  };
+
+  const styleSet = priorityStyles[task.priority] || priorityStyles.default;
+
+  // Draggable (vertical move to change start time)
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: task.id });
+  const dragStyle: React.CSSProperties = transform ? {
+    transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`
+  } : {};
 
   const startHour = task.scheduledTime ? parseInt(task.scheduledTime.split(':')[0]) : 0;
   const startMinute = task.scheduledTime ? parseInt(task.scheduledTime.split(':')[1]) : 0;
@@ -95,20 +147,30 @@ const TaskBlock: React.FC<TaskBlockProps> = ({ task, slotHeight, onToggleComplet
 
   return (
     <div
-      className={`absolute left-1 right-1 rounded-md border border-green-500/40 bg-green-500/15 backdrop-blur-sm overflow-hidden group ${resizing ? 'ring-2 ring-green-400' : ''}`}
-      style={{ top, height }}
+      ref={setNodeRef}
+      className={`absolute left-1 right-1 rounded-md border backdrop-blur-sm overflow-hidden group ${styleSet.container} ${resizing ? `ring-2 ${styleSet.ring}` : ''} ${isDragging ? 'opacity-80 ring-2 ring-white/30' : ''}`}
+      style={{ top, height, ...dragStyle }}
       onClick={(e) => {
         e.stopPropagation();
-        if (resizing || wasResizingRef.current) return; // suppress edit when resizing
+        if (resizing || wasResizingRef.current) return;
         onEditTask(task);
       }}
     >
-      <div className="p-2 h-full flex flex-col gap-1 select-none text-xs text-gray-200">
-        <div className="flex items-start justify-between gap-2">
+      <div className="p-2 pt-0 h-full flex flex-col gap-1 select-none text-xs text-gray-200">
+        {/* Drag Handle */}
+        <div
+          className={`h-2 w-full cursor-grab active:cursor-grabbing flex items-center justify-center text-[8px] tracking-wider ${styleSet.handle}`}
+          {...listeners}
+          {...attributes}
+          onClick={(e) => e.stopPropagation()}
+        >
+          ⋯
+        </div>
+        <div className="flex items-start justify-between gap-2 mt-0.5">
           <h4 className="font-medium leading-tight line-clamp-3 flex-1">{task.title}</h4>
           <button
             onClick={(e) => { e.stopPropagation(); onToggleComplete(task.id); }}
-            className={`w-4 h-4 rounded-full border flex items-center justify-center text-[10px] ${task.status==='completed' ? 'bg-green-400 border-green-300 text-green-900' : 'border-green-400 hover:bg-green-400/20'}`}
+            className={`w-4 h-4 rounded-full border flex items-center justify-center text-[10px] ${task.status==='completed' ? styleSet.buttonDone : styleSet.buttonIdle}`}
           >
             {task.status === 'completed' && '✓'}
           </button>
@@ -119,18 +181,18 @@ const TaskBlock: React.FC<TaskBlockProps> = ({ task, slotHeight, onToggleComplet
         {task.tags.length>0 && height >= slotHeight * 4 && (
           <div className="flex gap-1 flex-wrap">
             {task.tags.slice(0,3).map(tag => (
-              <span key={tag} className="px-1 py-0.5 bg-green-500/25 rounded text-[10px] text-green-300">{tag}</span>
+              <span key={tag} className={`px-1 py-0.5 rounded text-[10px] ${styleSet.tagBg} ${styleSet.tagText}`}>{tag}</span>
             ))}
             {task.tags.length>3 && <span className="px-1 py-0.5 bg-gray-600/40 rounded text-[10px]">+{task.tags.length-3}</span>}
           </div>
         )}
-        <div className="mt-auto flex items-center justify-between text-[10px] text-green-300 pt-1 border-t border-green-500/30">
+        <div className={`mt-auto flex items-center justify-between text-[10px] pt-1 border-t border-white/10 ${styleSet.timeText}`}>
           <span>{task.scheduledTime} - {endTime}</span>
           <span>{currentMinutes}m</span>
         </div>
       </div>
       <div
-        className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize bg-green-400/0 group-hover:bg-green-400/20 flex items-center justify-center text-[8px] text-green-300"
+        className={`absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize bg-transparent flex items-center justify-center text-[8px] ${styleSet.handle}`}
         onPointerDown={handleResizeStart}
       >
         ⋮
@@ -189,9 +251,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   onEditTask,
   updateTask
 }) => {
-  // 30-minute time slots (48 slots)
-  const slotHeight = 30; // px per 30m
-  const START_HOUR = 9; // default scroll-to hour
+  const slotHeight = 30;
+  const START_HOUR = 9;
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const initialScrollDone = React.useRef(false);
 
