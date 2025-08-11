@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { addDays } from 'date-fns';
 import { useTasks } from './hooks/useTasks';
 import { BrainDump } from './components/BrainDump';
@@ -54,6 +54,18 @@ function App() {
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryText, setSummaryText] = useState<string>('');
   const [summaryWeekStart, setSummaryWeekStart] = useState<string>(() => currentWeekStart.toISOString().substring(0,10));
+  // Mobile panel handling (0 = BrainDump, 1 = Today tasks)
+  const [isMobile, setIsMobile] = useState<boolean>(false);
+  const [mobilePanel, setMobilePanel] = useState<number>(0);
+  const touchStartXRef = useRef<number | null>(null);
+  const touchCurrentXRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -284,35 +296,115 @@ function App() {
         )}
 
         <div className="flex flex-1 overflow-hidden">
-          {/* Mobile: only show BrainDump */}
-          <div className="w-full sm:w-80">
-            <BrainDump
-              tasks={brainDumpTasks}
-              onAddTask={addTask}
-              onToggleComplete={handleToggleComplete}
-              onEditTask={setEditingTask}
-            />
-          </div>
-          {/* Desktop: show board/calendar views */}
-          <div className="hidden sm:flex flex-1">
-            {viewMode === 'board' ? (
-               <WeeklyBoard
-                 days={weekDays}
-                 onAddTask={addTask}
-                 onToggleComplete={handleToggleComplete}
-                 onEditTask={setEditingTask}
-               />
-            ) : (
-              <CalendarView
-                days={weekDays}
-                selectedDate={selectedCalendarDate}
-                onDateSelect={setSelectedDate}
-                onToggleComplete={handleToggleComplete}
-                onEditTask={setEditingTask}
-                updateTask={updateTask}
-              />
-            )}
-          </div>
+          {isMobile ? (
+            <div
+              className="relative flex-1 overflow-hidden"
+              onTouchStart={(e) => {
+                if (e.touches.length === 1) {
+                  touchStartXRef.current = e.touches[0].clientX;
+                  touchCurrentXRef.current = e.touches[0].clientX;
+                }
+              }}
+              onTouchMove={(e) => {
+                if (touchStartXRef.current != null) {
+                  touchCurrentXRef.current = e.touches[0].clientX;
+                }
+              }}
+              onTouchEnd={() => {
+                if (touchStartXRef.current != null && touchCurrentXRef.current != null) {
+                  const delta = touchCurrentXRef.current - touchStartXRef.current;
+                  // Swipe right (>50) -> show Today (panel 1). Swipe left (<-50) -> Brain Dump (panel 0)
+                  if (delta > 50) setMobilePanel(1);
+                  else if (delta < -50) setMobilePanel(0);
+                }
+                touchStartXRef.current = null;
+                touchCurrentXRef.current = null;
+              }}
+            >
+              <div
+                className="flex h-full w-[200%] transition-transform duration-300 ease-out"
+                style={{ transform: `translateX(-${mobilePanel * 50}%)` }}
+              >
+                {/* Panel 0: Brain Dump */}
+                <div className="w-1/2 min-w-[50%] h-full border-r border-gray-800">
+                  <BrainDump
+                    tasks={brainDumpTasks}
+                    onAddTask={addTask}
+                    onToggleComplete={handleToggleComplete}
+                    onEditTask={setEditingTask}
+                  />
+                </div>
+                {/* Panel 1: Today Tasks */}
+                <div className="w-1/2 min-w-[50%] h-full bg-gray-900 flex flex-col">
+                  <div className="p-4 border-b border-gray-700 flex items-center justify-between">
+                    <h2 className="text-lg font-semibold text-white">Today</h2>
+                    <button
+                      onClick={() => setMobilePanel(0)}
+                      className="text-xs px-2 py-1 rounded bg-gray-700 text-gray-200"
+                    >Brain Dump</button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                    {weekDays.find(d => d.date === new Date().toISOString().substring(0,10))?.tasks
+                      .sort((a,b) => (a.scheduledTime || '').localeCompare(b.scheduledTime || ''))
+                      .map(task => (
+                        <TaskCard
+                          key={task.id}
+                          task={task}
+                          onToggleComplete={handleToggleComplete}
+                          onEdit={setEditingTask}
+                        />
+                      ))}
+                    {weekDays.find(d => d.date === new Date().toISOString().substring(0,10))?.tasks.length === 0 && (
+                      <p className="text-xs text-gray-500">No tasks scheduled today.</p>
+                    )}
+                    <p className="text-[10px] text-gray-500 mt-6">Swipe left for Brain Dump / right for Today.</p>
+                  </div>
+                </div>
+              </div>
+              <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-2">
+                <button
+                  onClick={() => setMobilePanel(0)}
+                  className={`h-2 w-2 rounded-full ${mobilePanel===0?'bg-green-500':'bg-gray-600'}`}
+                  aria-label="Brain Dump panel"
+                />
+                <button
+                  onClick={() => setMobilePanel(1)}
+                  className={`h-2 w-2 rounded-full ${mobilePanel===1?'bg-green-500':'bg-gray-600'}`}
+                  aria-label="Today panel"
+                />
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="w-80">
+                <BrainDump
+                  tasks={brainDumpTasks}
+                  onAddTask={addTask}
+                  onToggleComplete={handleToggleComplete}
+                  onEditTask={setEditingTask}
+                />
+              </div>
+              <div className="flex flex-1">
+                {viewMode === 'board' ? (
+                  <WeeklyBoard
+                    days={weekDays}
+                    onAddTask={addTask}
+                    onToggleComplete={handleToggleComplete}
+                    onEditTask={setEditingTask}
+                  />
+                ) : (
+                  <CalendarView
+                    days={weekDays}
+                    selectedDate={selectedCalendarDate}
+                    onDateSelect={setSelectedDate}
+                    onToggleComplete={handleToggleComplete}
+                    onEditTask={setEditingTask}
+                    updateTask={updateTask}
+                  />
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         <DragOverlay>
