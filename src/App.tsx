@@ -284,30 +284,35 @@ function App() {
         )}
 
         <div className="flex flex-1 overflow-hidden">
-          <BrainDump
-            tasks={brainDumpTasks}
-            onAddTask={addTask}
-            onToggleComplete={handleToggleComplete}
-            onEditTask={setEditingTask}
-          />
-
-          {viewMode === 'board' ? (
-             <WeeklyBoard
-               days={weekDays}
-               onAddTask={addTask}
-               onToggleComplete={handleToggleComplete}
-               onEditTask={setEditingTask}
-             />
-          ) : (
-            <CalendarView
-              days={weekDays}
-              selectedDate={selectedCalendarDate}
-              onDateSelect={setSelectedDate}
+          {/* Mobile: only show BrainDump */}
+          <div className="w-full sm:w-80">
+            <BrainDump
+              tasks={brainDumpTasks}
+              onAddTask={addTask}
               onToggleComplete={handleToggleComplete}
               onEditTask={setEditingTask}
-              updateTask={updateTask}
             />
-          )}
+          </div>
+          {/* Desktop: show board/calendar views */}
+          <div className="hidden sm:flex flex-1">
+            {viewMode === 'board' ? (
+               <WeeklyBoard
+                 days={weekDays}
+                 onAddTask={addTask}
+                 onToggleComplete={handleToggleComplete}
+                 onEditTask={setEditingTask}
+               />
+            ) : (
+              <CalendarView
+                days={weekDays}
+                selectedDate={selectedCalendarDate}
+                onDateSelect={setSelectedDate}
+                onToggleComplete={handleToggleComplete}
+                onEditTask={setEditingTask}
+                updateTask={updateTask}
+              />
+            )}
+          </div>
         </div>
 
         <DragOverlay>
