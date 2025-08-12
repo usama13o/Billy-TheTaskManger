@@ -62,16 +62,44 @@ function App() {
   // Mobile panel handling (0 = BrainDump, 1 = Today, 2 = Week View)
   const [isMobile, setIsMobile] = useState<boolean>(false);
   const [mobilePanel, setMobilePanel] = useState<number>(0); // Default to Brain Dump as main aspect
-  const [showMobileQuickAdd, setShowMobileQuickAdd] = useState<boolean>(false);
   const touchStartXRef = useRef<number | null>(null);
   const touchCurrentXRef = useRef<number | null>(null);
+  const mobileHeaderRef = useRef<HTMLDivElement | null>(null);
+  const [mobileHeaderHeight, setMobileHeaderHeight] = useState<number>(112);
 
   useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 640);
-    check();
-    window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
+    // Robust mobile detection: CSS media query + resize + orientation changes
+    const mql = window.matchMedia('(max-width: 639.98px)');
+    const update = () => setIsMobile(mql.matches || window.innerWidth < 640);
+    update();
+    const onResize = () => update();
+    const onOrientation = () => update();
+    mql.addEventListener?.('change', update);
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onOrientation);
+    return () => {
+      mql.removeEventListener?.('change', update);
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onOrientation);
+    };
   }, []);
+
+  // Track dynamic height of the fixed mobile header
+  useEffect(() => {
+    if (!isMobile) return;
+    const measure = () => {
+      const h = mobileHeaderRef.current?.offsetHeight ?? 112;
+      setMobileHeaderHeight(h);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (mobileHeaderRef.current) ro.observe(mobileHeaderRef.current);
+    window.addEventListener('resize', measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [isMobile]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -256,7 +284,6 @@ function App() {
     if (mobilePanel !== 0) {
       setMobilePanel(0); // Switch to Brain Dump panel
     }
-    setShowMobileQuickAdd(true);
   };
 
   const handleToggleComplete = (taskId: string) => {
@@ -314,7 +341,7 @@ function App() {
           {isMobile ? (
             <>
               {/* Mobile Header */}
-              <div className="fixed top-0 left-0 right-0 z-40">
+              <div ref={mobileHeaderRef} className="fixed top-0 left-0 right-0 z-40">
                 <MobileHeader
                   viewMode={viewMode}
                   onViewModeChange={setViewMode}
@@ -327,7 +354,8 @@ function App() {
 
               {/* Mobile Panel System with 3 panels */}
               <div 
-                className="relative flex-1 overflow-hidden mt-[120px]" // Account for mobile header height
+                className="relative flex-1 overflow-hidden"
+                style={{ marginTop: mobileHeaderHeight }}
                 onTouchStart={(e) => {
                   if (e.touches.length === 1) {
                     touchStartXRef.current = e.touches[0].clientX;
