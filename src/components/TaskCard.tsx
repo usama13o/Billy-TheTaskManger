@@ -10,6 +10,7 @@ interface TaskCardProps {
   onEdit: (task: Task) => void;
   isDragging?: boolean;
   draggable?: boolean; // disable drag when false (e.g., sidebar preview)
+  compact?: boolean; // mobile-optimized compact view
 }
 
 export const TaskCard: React.FC<TaskCardProps> = ({ 
@@ -17,7 +18,8 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   onToggleComplete, 
   onEdit, 
   isDragging = false,
-  draggable = true
+  draggable = true,
+  compact = false
 }) => {
   let attributes: any = {};
   let listeners: any = {};
@@ -51,10 +53,11 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       {...(draggable ? attributes : {})}
       {...(draggable ? listeners : {})}
       className={`
-        bg-gray-800 rounded-lg p-3 border-l-4 ${getPriorityColor(task.priority)}
+        bg-gray-800 rounded-lg border-l-4 ${getPriorityColor(task.priority)}
         ${draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} transition-all duration-200
-        hover:bg-gray-750 hover:scale-[1.02] group
+        hover:bg-gray-750 hover:scale-[1.02] group active:scale-95
         ${isDragging ? 'opacity-50 scale-95' : ''}
+        ${compact ? 'p-2' : 'p-3'}
       `}
       onClick={() => onEdit(task)}
     >
@@ -64,30 +67,31 @@ export const TaskCard: React.FC<TaskCardProps> = ({
             e.stopPropagation();
             onToggleComplete(task.id);
           }}
-          className="mt-1 text-gray-400 hover:text-green-400 transition-colors"
+          className={`mt-1 text-gray-400 hover:text-green-400 transition-colors ${compact ? 'touch-manipulation' : ''}`}
         >
           {task.status === 'completed' ? (
-            <CheckCircle2 className="w-4 h-4 text-green-400" />
+            <CheckCircle2 className={`text-green-400 ${compact ? 'w-4 h-4' : 'w-4 h-4'}`} />
           ) : (
-            <Circle className="w-4 h-4" />
+            <Circle className={`${compact ? 'w-4 h-4' : 'w-4 h-4'}`} />
           )}
         </button>
         
         <div className="flex-1 min-w-0">
           <h3 className={`
-            text-sm font-medium text-gray-200 leading-tight
+            font-medium text-gray-200 leading-tight
             ${task.status === 'completed' ? 'line-through text-gray-500' : ''}
+            ${compact ? 'text-xs' : 'text-sm'}
           `}>
             {task.title}
           </h3>
           
-          {task.description && (
+          {task.description && !compact && (
             <p className="text-xs text-gray-400 mt-1 line-clamp-2">
               {task.description}
             </p>
           )}
           
-          <div className="flex items-center justify-between mt-2">
+          <div className={`flex items-center justify-between ${compact ? 'mt-1' : 'mt-2'}`}>
             <div className="flex items-center gap-1 text-xs text-gray-400">
               <Clock className="w-3 h-3" />
               <span>{task.timeEstimate}m</span>
@@ -98,7 +102,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
             )}
           </div>
 
-          {task.tags.length > 0 && (
+          {task.tags.length > 0 && !compact && (
             <div className="flex flex-wrap gap-1 mt-2">
               {task.tags.slice(0, 2).map(tag => (
                 <span
@@ -113,6 +117,15 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                   +{task.tags.length - 2}
                 </span>
               )}
+            </div>
+          )}
+
+          {task.tags.length > 0 && compact && (
+            <div className="flex items-center gap-1 mt-1">
+              <span className="text-xs text-green-400">
+                {task.tags.slice(0, 1).join(', ')}
+                {task.tags.length > 1 && ` +${task.tags.length - 1}`}
+              </span>
             </div>
           )}
         </div>
