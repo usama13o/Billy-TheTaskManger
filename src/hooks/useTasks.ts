@@ -4,65 +4,24 @@ import { supabase } from '../lib/supabaseClient';
 import { v4 as uuidv4 } from 'uuid';
 import { format, addDays, startOfWeek } from 'date-fns';
 
-const INITIAL_TASKS: Task[] = [
-  {
-    id: uuidv4(),
-    title: 'R&D read and get scope growth data OWs',
-    description: 'Research and development task for growth metrics',
-    timeEstimate: 30,
-    priority: 'high',
-    status: 'pending',
-    createdAt: new Date(),
-    tags: ['research', 'data']
-  },
-  {
-    id: uuidv4(),
-    title: 'Align vet data we have for growth from ati - project',
-    description: 'Align veterinary data for growth analysis',
-    timeEstimate: 30,
-    priority: 'medium',
-    status: 'pending',
-    createdAt: new Date(),
-    tags: ['alignment', 'data']
-  },
-  {
-    id: uuidv4(),
-    title: 'Test growth with new model OWs - eval',
-    description: 'Testing growth metrics with updated model',
-    timeEstimate: 30,
-    priority: 'medium',
-    status: 'pending',
-    createdAt: new Date(),
-    tags: ['testing', 'evaluation']
-  },
-  {
-    id: uuidv4(),
-    title: 'run skye multi gpu high res model - test again',
-    description: 'Execute multi-GPU model testing',
-    timeEstimate: 30,
-    priority: 'low',
-    status: 'pending',
-    createdAt: new Date(),
-    tags: ['testing', 'gpu']
-  }
-];
+
 
 export const useTasks = () => {
   const STORAGE_KEY = 'taskManager.tasks.v1';
   const SUPA_ENABLED = true; // toggle if needed quickly
 
   const [tasks, setTasks] = useState<Task[]>(() => {
-    if (typeof window === 'undefined') return INITIAL_TASKS; // SSR safety (not used here but defensive)
+    if (typeof window === 'undefined') return []; // SSR safety (not used here but defensive)
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return INITIAL_TASKS;
+      if (!raw) return [];
       const parsed = JSON.parse(raw) as any[];
       return parsed.map(t => ({
         ...t,
         createdAt: t.createdAt ? new Date(t.createdAt) : new Date()
       })) as Task[];
     } catch {
-      return INITIAL_TASKS;
+      return [];
     }
   });
   const [viewMode, setViewMode] = useState<ViewMode>('board');
@@ -310,11 +269,9 @@ export const useTasks = () => {
           scheduledTime: r.scheduled_time || undefined,
           tags: r.tags || []
         }));
-        // Overwrite local with remote unless remote empty (keep local seeding)
-        if (remoteTasks.length > 0) {
-          suppressNextUpsertRef.current = true; // prevent echo bulk upsert
-          setTasks(remoteTasks);
-        }
+        // Always use remote data when available, regardless of whether it's empty
+        suppressNextUpsertRef.current = true; // prevent echo bulk upsert
+        setTasks(remoteTasks);
       }
     })();
     const channel = supabase.channel('public:tasks')
