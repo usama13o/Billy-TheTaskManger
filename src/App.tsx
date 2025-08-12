@@ -2,6 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { addDays } from 'date-fns';
 import { useTasks } from './hooks/useTasks';
 import { BrainDump } from './components/BrainDump';
+import { MobileBrainDump } from './components/MobileBrainDump';
+import { MobileToday } from './components/MobileToday';
+import { MobileWeekView } from './components/MobileWeekView';
+import { MobileHeader } from './components/MobileHeader';
+import { FloatingActionButton } from './components/FloatingActionButton';
 import { WeeklyBoard } from './components/WeeklyBoard';
 import { CalendarView } from './components/CalendarView';
 import { TaskModal } from './components/TaskModal';
@@ -54,9 +59,10 @@ function App() {
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryText, setSummaryText] = useState<string>('');
   const [summaryWeekStart, setSummaryWeekStart] = useState<string>(() => currentWeekStart.toISOString().substring(0,10));
-  // Mobile panel handling (0 = BrainDump, 1 = Today tasks)
+  // Mobile panel handling (0 = BrainDump, 1 = Today, 2 = Week View)
   const [isMobile, setIsMobile] = useState<boolean>(false);
-  const [mobilePanel, setMobilePanel] = useState<number>(0);
+  const [mobilePanel, setMobilePanel] = useState<number>(0); // Default to Brain Dump as main aspect
+  const [showMobileQuickAdd, setShowMobileQuickAdd] = useState<boolean>(false);
   const touchStartXRef = useRef<number | null>(null);
   const touchCurrentXRef = useRef<number | null>(null);
 
@@ -246,6 +252,13 @@ function App() {
     setDraggedTask(null);
   };
 
+  const handleMobileQuickAdd = () => {
+    if (mobilePanel !== 0) {
+      setMobilePanel(0); // Switch to Brain Dump panel
+    }
+    setShowMobileQuickAdd(true);
+  };
+
   const handleToggleComplete = (taskId: string) => {
     const allTasks = [...brainDumpTasks, ...weekDays.flatMap(day => day.tasks)];
     const task = allTasks.find(t => t.id === taskId);
@@ -263,17 +276,19 @@ function App() {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <Header
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
-          currentWeekStart={currentWeekStart}
-          onNavigateWeek={navigateWeek}
-      theme={theme}
-      onToggleTheme={toggleTheme}
-          onToday={jumpToToday}
-          onOpenExport={() => setShowExport(true)}
-          onGenerateSummary={openSummary}
-        />
+        {!isMobile && (
+          <Header
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            currentWeekStart={currentWeekStart}
+            onNavigateWeek={navigateWeek}
+            theme={theme}
+            onToggleTheme={toggleTheme}
+            onToday={jumpToToday}
+            onOpenExport={() => setShowExport(true)}
+            onGenerateSummary={openSummary}
+          />
+        )}
         {showNotice && notice && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={()=>setShowNotice(false)} />
@@ -297,83 +312,116 @@ function App() {
 
         <div className="flex flex-1 overflow-hidden">
           {isMobile ? (
-            <div
-              className="relative flex-1 overflow-hidden"
-              onTouchStart={(e) => {
-                if (e.touches.length === 1) {
-                  touchStartXRef.current = e.touches[0].clientX;
-                  touchCurrentXRef.current = e.touches[0].clientX;
-                }
-              }}
-              onTouchMove={(e) => {
-                if (touchStartXRef.current != null) {
-                  touchCurrentXRef.current = e.touches[0].clientX;
-                }
-              }}
-              onTouchEnd={() => {
-                if (touchStartXRef.current != null && touchCurrentXRef.current != null) {
-                  const delta = touchCurrentXRef.current - touchStartXRef.current;
-                  // Swipe right (>50) -> show Today (panel 1). Swipe left (<-50) -> Brain Dump (panel 0)
-                  if (delta > 50) setMobilePanel(1);
-                  else if (delta < -50) setMobilePanel(0);
-                }
-                touchStartXRef.current = null;
-                touchCurrentXRef.current = null;
-              }}
-            >
-              <div
-                className="flex h-full w-[200%] transition-transform duration-300 ease-out"
-                style={{ transform: `translateX(-${mobilePanel * 50}%)` }}
+            <>
+              {/* Mobile Header */}
+              <div className="fixed top-0 left-0 right-0 z-40">
+                <MobileHeader
+                  viewMode={viewMode}
+                  onViewModeChange={setViewMode}
+                  currentWeekStart={currentWeekStart}
+                  onNavigateWeek={navigateWeek}
+                  onToday={jumpToToday}
+                  onQuickAdd={handleMobileQuickAdd}
+                />
+              </div>
+
+              {/* Mobile Panel System with 3 panels */}
+              <div 
+                className="relative flex-1 overflow-hidden mt-[120px]" // Account for mobile header height
+                onTouchStart={(e) => {
+                  if (e.touches.length === 1) {
+                    touchStartXRef.current = e.touches[0].clientX;
+                    touchCurrentXRef.current = e.touches[0].clientX;
+                  }
+                }}
+                onTouchMove={(e) => {
+                  if (touchStartXRef.current != null) {
+                    touchCurrentXRef.current = e.touches[0].clientX;
+                  }
+                }}
+                onTouchEnd={() => {
+                  if (touchStartXRef.current != null && touchCurrentXRef.current != null) {
+                    const delta = touchCurrentXRef.current - touchStartXRef.current;
+                    // Enhanced swipe logic for 3 panels
+                    if (delta > 50) {
+                      // Swipe right - go to previous panel
+                      setMobilePanel(prev => Math.max(0, prev - 1));
+                    } else if (delta < -50) {
+                      // Swipe left - go to next panel
+                      setMobilePanel(prev => Math.min(2, prev + 1));
+                    }
+                  }
+                  touchStartXRef.current = null;
+                  touchCurrentXRef.current = null;
+                }}
               >
-                {/* Panel 0: Brain Dump */}
-                <div className="w-1/2 min-w-[50%] h-full border-r border-gray-800">
-                  <BrainDump
-                    tasks={brainDumpTasks}
-                    onAddTask={addTask}
-                    onToggleComplete={handleToggleComplete}
-                    onEditTask={setEditingTask}
-                  />
+                <div
+                  className="flex h-full w-[300%] transition-transform duration-300 ease-out"
+                  style={{ transform: `translateX(-${mobilePanel * 33.333}%)` }}
+                >
+                  {/* Panel 0: Enhanced Brain Dump (Main panel) */}
+                  <div className="w-1/3 min-w-[33.333%] h-full">
+                    <MobileBrainDump
+                      tasks={brainDumpTasks}
+                      onAddTask={addTask}
+                      onToggleComplete={handleToggleComplete}
+                      onEditTask={setEditingTask}
+                    />
+                  </div>
+
+                  {/* Panel 1: Enhanced Today View */}
+                  <div className="w-1/3 min-w-[33.333%] h-full border-l border-gray-800">
+                    <MobileToday
+                      tasks={weekDays.flatMap(day => day.tasks)}
+                      onToggleComplete={handleToggleComplete}
+                      onEditTask={setEditingTask}
+                      onQuickAdd={handleMobileQuickAdd}
+                      currentDate={new Date()}
+                    />
+                  </div>
+
+                  {/* Panel 2: Week View */}
+                  <div className="w-1/3 min-w-[33.333%] h-full border-l border-gray-800">
+                    <MobileWeekView
+                      days={weekDays}
+                      onToggleComplete={handleToggleComplete}
+                      onEditTask={setEditingTask}
+                      onQuickAdd={handleMobileQuickAdd}
+                      currentWeekStart={currentWeekStart}
+                    />
+                  </div>
                 </div>
-                {/* Panel 1: Today Tasks */}
-                <div className="w-1/2 min-w-[50%] h-full bg-gray-900 flex flex-col">
-                  <div className="p-4 border-b border-gray-700 flex items-center justify-between">
-                    <h2 className="text-lg font-semibold text-white">Today</h2>
+
+                {/* Enhanced Panel Indicators */}
+                <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2">
+                  {[0, 1, 2].map((panelIndex) => (
                     <button
-                      onClick={() => setMobilePanel(0)}
-                      className="text-xs px-2 py-1 rounded bg-gray-700 text-gray-200"
-                    >Brain Dump</button>
-                  </div>
-                  <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                    {weekDays.find(d => d.date === new Date().toISOString().substring(0,10))?.tasks
-                      .sort((a,b) => (a.scheduledTime || '').localeCompare(b.scheduledTime || ''))
-                      .map(task => (
-                        <TaskCard
-                          key={task.id}
-                          task={task}
-                          onToggleComplete={handleToggleComplete}
-                          onEdit={setEditingTask}
-                        />
-                      ))}
-                    {weekDays.find(d => d.date === new Date().toISOString().substring(0,10))?.tasks.length === 0 && (
-                      <p className="text-xs text-gray-500">No tasks scheduled today.</p>
-                    )}
-                    <p className="text-[10px] text-gray-500 mt-6">Swipe left for Brain Dump / right for Today.</p>
+                      key={panelIndex}
+                      onClick={() => setMobilePanel(panelIndex)}
+                      className={`h-2 rounded-full transition-all duration-200 ${
+                        mobilePanel === panelIndex 
+                          ? 'w-8 bg-green-500' 
+                          : 'w-2 bg-gray-600 hover:bg-gray-500'
+                      }`}
+                      aria-label={`Go to ${['Brain Dump', 'Today', 'Week'][panelIndex]} panel`}
+                    />
+                  ))}
+                </div>
+
+                {/* Panel Labels */}
+                <div className="absolute bottom-8 left-0 right-0 flex justify-center">
+                  <div className="bg-gray-800/90 backdrop-blur-sm rounded-full px-4 py-2 text-xs text-gray-300">
+                    {['🧠 Brain Dump', '📅 Today', '📊 Week'][mobilePanel]}
                   </div>
                 </div>
               </div>
-              <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-2">
-                <button
-                  onClick={() => setMobilePanel(0)}
-                  className={`h-2 w-2 rounded-full ${mobilePanel===0?'bg-green-500':'bg-gray-600'}`}
-                  aria-label="Brain Dump panel"
-                />
-                <button
-                  onClick={() => setMobilePanel(1)}
-                  className={`h-2 w-2 rounded-full ${mobilePanel===1?'bg-green-500':'bg-gray-600'}`}
-                  aria-label="Today panel"
-                />
-              </div>
-            </div>
+
+              {/* Floating Action Button */}
+              <FloatingActionButton
+                onClick={handleMobileQuickAdd}
+                visible={mobilePanel === 0} // Only show on Brain Dump panel
+              />
+            </>
           ) : (
             <>
               <div className="w-80">
