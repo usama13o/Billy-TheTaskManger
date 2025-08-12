@@ -142,18 +142,18 @@ export const MobileBrainDump: React.FC<MobileBrainDumpProps> = ({
         )}
       </div>
 
-      {/* Tasks list with enhanced mobile styling */}
-      <div ref={setNodeRef} className="flex-1 p-4 overflow-y-auto space-y-4">
+      {/* Tasks list with enhanced mobile styling (no drag, just scroll/click) */}
+      <div className="flex-1 p-4 overflow-y-auto space-y-4">
         {tasks.map((task) => (
           <div key={task.id} className="transform transition-transform active:scale-95">
             <TaskCard
               task={task}
               onToggleComplete={onToggleComplete}
               onEdit={onEditTask}
+              draggable={false}
             />
           </div>
         ))}
-        
         {tasks.length === 0 && (
           <div className="text-center py-12 text-gray-500">
             <div className="bg-gray-800/50 rounded-2xl p-8 mx-4">
