@@ -39,7 +39,8 @@ function App() {
     updateTask,
     deleteTask,
   moveTask,
-  jumpToToday
+  jumpToToday,
+  resetFromCloud
   } = useTasks();
 
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -303,7 +304,7 @@ function App() {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        {!isMobile && (
+    {!isMobile && (
           <Header
             viewMode={viewMode}
             onViewModeChange={setViewMode}
@@ -313,7 +314,8 @@ function App() {
             onToggleTheme={toggleTheme}
             onToday={jumpToToday}
             onOpenExport={() => setShowExport(true)}
-            onGenerateSummary={openSummary}
+      onGenerateSummary={openSummary}
+      onResetFromCloud={resetFromCloud}
           />
         )}
         {showNotice && notice && (
@@ -349,6 +351,7 @@ function App() {
                   onNavigateWeek={navigateWeek}
                   onToday={jumpToToday}
                   onQuickAdd={handleMobileQuickAdd}
+                  onResetFromCloud={resetFromCloud}
                 />
               </div>
 

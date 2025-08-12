@@ -13,6 +13,7 @@ interface HeaderProps {
   onToday: () => void;
   onOpenExport: () => void;
   onGenerateSummary: () => void;
+  onResetFromCloud: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -24,7 +25,8 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleTheme,
   onToday,
   onOpenExport,
-  onGenerateSummary
+  onGenerateSummary,
+  onResetFromCloud
 }) => {
   return (
     <div className="p-4 border-b transition-colors bg-[var(--color-bg)] border-[var(--color-border)]">
@@ -58,6 +60,13 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={onResetFromCloud}
+            className="px-3 py-2 rounded-md border text-sm font-medium flex items-center gap-2 border-[var(--color-border)] text-[var(--color-text)] hover:bg-[var(--color-bg-alt)]"
+            title="Reset local cache and reload from cloud"
+          >
+            <span>Reset</span>
+          </button>
           <button
             onClick={onOpenExport}
             className="px-3 py-2 rounded-md border text-sm font-medium flex items-center gap-2 border-[var(--color-border)] text-[var(--color-text)] hover:bg-[var(--color-bg-alt)]"

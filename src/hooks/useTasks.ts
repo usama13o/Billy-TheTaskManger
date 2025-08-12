@@ -193,6 +193,40 @@ export const useTasks = () => {
     setSelectedCalendarDate(format(today, 'yyyy-MM-dd'));
   }, []);
 
+  // Clear local cache and reload tasks from cloud (Supabase is source of truth)
+  const resetFromCloud = useCallback(async () => {
+    try { localStorage.removeItem(STORAGE_KEY); } catch {/* ignore */}
+    // Clear local trackers to avoid echo upserts/deletes
+    lastSyncedHashesRef.current = {};
+    pendingDeletionIdsRef.current.clear();
+    if (SUPA_ENABLED) {
+      const { data, error } = await supabase.from('tasks').select('*');
+      logErr('resetFromCloud.fetch', error);
+      const remoteTasks: Task[] = (data || []).map((r: any) => ({
+        id: r.id,
+        title: r.title,
+        description: r.description || '',
+        timeEstimate: r.time_estimate || 30,
+        priority: r.priority || 'medium',
+        status: r.status || 'pending',
+        createdAt: r.created_at ? new Date(r.created_at) : new Date(),
+        scheduledDate: r.scheduled_date || undefined,
+        scheduledTime: r.scheduled_time || undefined,
+        tags: r.tags || []
+      }));
+      // Use remote as source of truth
+      suppressNextUpsertRef.current = true;
+      setTasks(remoteTasks);
+      // Rebuild hashes from cloud
+      for (const t of remoteTasks) {
+        lastSyncedHashesRef.current[t.id] = hashTask(t);
+      }
+    } else {
+      suppressNextUpsertRef.current = true;
+      setTasks([]);
+    }
+  }, []);
+
   // Persist tasks to localStorage whenever they change
   useEffect(() => {
     try {
@@ -348,6 +382,7 @@ export const useTasks = () => {
     updateTask,
     deleteTask,
   moveTask,
-  jumpToToday
+  jumpToToday,
+  resetFromCloud
   };
 };
