@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Task } from '../types';
 import { TaskCard } from './TaskCard';
 import { Plus, Brain, Zap } from 'lucide-react';
-import { useDroppable } from '@dnd-kit/core';
 
 interface MobileBrainDumpProps {
   tasks: Task[];
@@ -22,9 +21,6 @@ export const MobileBrainDump: React.FC<MobileBrainDumpProps> = ({
   const addBoxRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const { setNodeRef } = useDroppable({
-    id: 'brain-dump'
-  });
 
   const handleAddTask = () => {
     const raw = newTaskTitle.trim();

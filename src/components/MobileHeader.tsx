@@ -1,6 +1,6 @@
 import React from 'react';
 import { ViewMode } from '../types';
-import { ChevronLeft, ChevronRight, Plus, Calendar, Columns3, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Calendar, Columns3, RefreshCw, DownloadCloud } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface MobileHeaderProps {
@@ -11,6 +11,7 @@ interface MobileHeaderProps {
   onToday: () => void;
   onQuickAdd: () => void;
   onResetFromCloud?: () => void;
+  onSyncGoogleCalendar?: () => void;
 }
 
 export const MobileHeader: React.FC<MobileHeaderProps> = ({
@@ -20,7 +21,8 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
   onNavigateWeek,
   onToday,
   onQuickAdd,
-  onResetFromCloud
+  onResetFromCloud,
+  onSyncGoogleCalendar
 }) => {
   return (
     <div className="bg-gray-900 border-b border-gray-700 p-3">
@@ -32,6 +34,16 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
         </h1>
         
         <div className="flex items-center gap-2">
+          {onSyncGoogleCalendar && (
+            <button
+              onClick={onSyncGoogleCalendar}
+              className="bg-gray-800 hover:bg-gray-700 text-gray-200 p-2 rounded-full border border-gray-700 transition-colors"
+              aria-label="Sync Google Calendar"
+              title="Import GCal"
+            >
+              <DownloadCloud className="w-4 h-4" />
+            </button>
+          )}
           {onResetFromCloud && (
             <button
               onClick={onResetFromCloud}

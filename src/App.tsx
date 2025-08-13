@@ -40,7 +40,8 @@ function App() {
     deleteTask,
   moveTask,
   jumpToToday,
-  resetFromCloud
+  resetFromCloud,
+  importGoogleCalendarForRange
   } = useTasks();
 
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -314,8 +315,20 @@ function App() {
             onToggleTheme={toggleTheme}
             onToday={jumpToToday}
             onOpenExport={() => setShowExport(true)}
-      onGenerateSummary={openSummary}
-      onResetFromCloud={resetFromCloud}
+            onGenerateSummary={openSummary}
+            onResetFromCloud={resetFromCloud}
+            onSyncGoogleCalendar={async () => {
+              const startISO = new Date(currentWeekStart).toISOString().substring(0,10);
+              const end = addDays(new Date(currentWeekStart), 7).toISOString().substring(0,10);
+              try {
+                await importGoogleCalendarForRange(startISO, end);
+                setNotice('Imported Google Calendar events for this week.');
+                setShowNotice(true);
+              } catch (e: any) {
+                setNotice('Google Calendar sync failed: ' + (e?.message || 'unknown error'));
+                setShowNotice(true);
+              }
+            }}
           />
         )}
         {showNotice && notice && (
@@ -352,6 +365,18 @@ function App() {
                   onToday={jumpToToday}
                   onQuickAdd={handleMobileQuickAdd}
                   onResetFromCloud={resetFromCloud}
+                  onSyncGoogleCalendar={async () => {
+                    const startISO = new Date(currentWeekStart).toISOString().substring(0,10);
+                    const end = addDays(new Date(currentWeekStart), 7).toISOString().substring(0,10);
+                    try {
+                      await importGoogleCalendarForRange(startISO, end);
+                      setNotice('Imported Google Calendar events for this week.');
+                      setShowNotice(true);
+                    } catch (e: any) {
+                      setNotice('Google Calendar sync failed: ' + (e?.message || 'unknown error'));
+                      setShowNotice(true);
+                    }
+                  }}
                 />
               </div>
 

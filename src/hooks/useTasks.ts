@@ -3,6 +3,7 @@ import { Task, DayColumn, ViewMode } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import { v4 as uuidv4 } from 'uuid';
 import { format, addDays, startOfWeek } from 'date-fns';
+import { getNormalizedEventsForRange } from '../lib/googleCalendar';
 
 
 
@@ -145,6 +146,60 @@ export const useTasks = () => {
           pendingDeletionIdsRef.current.delete(taskId);
         }
       });
+    }
+  }, []);
+
+  // Import Google Calendar events for a date range (e.g., current week)
+  const importGoogleCalendarForRange = useCallback(async (startISODate: string, endISODate: string) => {
+    try {
+      const events = await getNormalizedEventsForRange(startISODate, endISODate);
+      setTasks(prev => {
+        const existingByTag = new Set<string>();
+        for (const t of prev) {
+          for (const tag of t.tags || []) {
+            if (tag.startsWith('gcal:')) existingByTag.add(tag);
+          }
+        }
+        const additions: Task[] = [];
+        for (const e of events) {
+          const tag = `gcal:${e.id}`;
+          if (existingByTag.has(tag)) continue; // already imported
+          additions.push({
+            id: uuidv4(),
+            title: e.title,
+            description: e.description,
+            timeEstimate: e.minutes,
+            priority: 'medium',
+            status: 'pending',
+            createdAt: new Date(),
+            scheduledDate: e.date,
+            scheduledTime: e.time,
+            tags: [tag, 'calendar']
+          });
+        }
+        if (additions.length === 0) return prev;
+        const next = [...prev, ...additions];
+        // Also push to supabase
+        if (SUPA_ENABLED && additions.length) {
+          const rows = additions.map(t => ({
+            id: t.id,
+            title: t.title,
+            description: t.description,
+            time_estimate: t.timeEstimate,
+            priority: t.priority,
+            status: t.status,
+            created_at: t.createdAt.toISOString(),
+            scheduled_date: t.scheduledDate,
+            scheduled_time: t.scheduledTime,
+            tags: t.tags
+          }));
+          supabase.from('tasks').upsert(rows).then(({ error }: { error: any }) => logErr('importGCal', error));
+        }
+        return next;
+      });
+    } catch (err) {
+      logErr('importGCal.error', err);
+      throw err;
     }
   }, []);
 
@@ -383,6 +438,7 @@ export const useTasks = () => {
     deleteTask,
   moveTask,
   jumpToToday,
-  resetFromCloud
+  resetFromCloud,
+  importGoogleCalendarForRange
   };
 };
