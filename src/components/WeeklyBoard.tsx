@@ -42,7 +42,7 @@ export const WeeklyBoard: React.FC<WeeklyBoardProps> = ({
   };
 
   return (
-    <div className="flex-1 p-6 overflow-x-auto">
+    <div className="flex-1 min-w-0 p-6 overflow-x-auto">
       <div className="flex gap-4 min-w-max">
         {days.map((day) => (
           <DayColumnComponent

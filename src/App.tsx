@@ -488,7 +488,7 @@ function App() {
                   onEditTask={setEditingTask}
                 />
               </div>
-              <div className="flex flex-1">
+              <div className="flex flex-1 min-w-0">
                 {viewMode === 'board' ? (
                   <WeeklyBoard
                     days={weekDays}
