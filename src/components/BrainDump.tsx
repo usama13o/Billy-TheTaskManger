@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Task } from '../types';
 import { TaskCard } from './TaskCard';
-import { Plus, Brain } from 'lucide-react';
+import { Plus, Brain, Mic, Square } from 'lucide-react';
+import { transcribeAudio, extractTasksFromText } from '../lib/voice';
 import { useDroppable } from '@dnd-kit/core';
 
 interface BrainDumpProps {
@@ -19,6 +20,10 @@ export const BrainDump: React.FC<BrainDumpProps> = ({
 }) => {
   const [isAdding, setIsAdding] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [recording, setRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<BlobPart[]>([]);
+  const [transcribeBusy, setTranscribeBusy] = useState(false);
   const addBoxRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -62,6 +67,63 @@ export const BrainDump: React.FC<BrainDumpProps> = ({
     }
   };
 
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      chunksRef.current = [];
+      mr.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunksRef.current.push(e.data); };
+      mr.onstop = async () => {
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        setTranscribeBusy(true);
+        try {
+          const text = await transcribeAudio(blob, 'whisper-1');
+          if (text) {
+            // Try to extract structured tasks
+            const tasks = await extractTasksFromText(text);
+            if (Array.isArray(tasks) && tasks.length > 0) {
+              for (const t of tasks) {
+                onAddTask({
+                  title: t.title,
+                  description: t.description,
+                  priority: t.priority,
+                  timeEstimate: t.timeEstimate,
+                  tags: t.tags || ['voice']
+                });
+              }
+            } else {
+              // Fallback: put transcript into input so user can edit before adding
+              setIsAdding(true);
+              setNewTaskTitle(text);
+            }
+          }
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.warn('Transcription failed', err);
+          setIsAdding(true);
+        } finally {
+          setTranscribeBusy(false);
+        }
+      };
+      mediaRecorderRef.current = mr;
+      mr.start();
+      setRecording(true);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('Mic permission/error', e);
+    }
+  };
+
+  const stopRecording = () => {
+    const mr = mediaRecorderRef.current;
+    if (mr && mr.state !== 'inactive') {
+      mr.stop();
+      // stop tracks
+      mr.stream.getTracks().forEach(t => t.stop());
+    }
+    setRecording(false);
+  };
+
   // Click-away to exit add mode
   useEffect(() => {
     if (!isAdding) return;
@@ -83,7 +145,7 @@ export const BrainDump: React.FC<BrainDumpProps> = ({
           <h2 className="text-lg font-semibold text-white">Brain Dump</h2>
         </div>
         
-        {isAdding ? (
+  {isAdding ? (
           <div ref={addBoxRef} className="space-y-2">
             <input
               type="text"
@@ -114,13 +176,24 @@ export const BrainDump: React.FC<BrainDumpProps> = ({
             </div>
           </div>
         ) : (
-          <button
-            onClick={() => setIsAdding(true)}
-            className="w-full p-2 border-2 border-dashed border-gray-600 rounded-lg text-gray-400 hover:border-green-400 hover:text-green-400 transition-all duration-200 flex items-center justify-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            Add a task
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setIsAdding(true)}
+              className="flex-1 p-2 border-2 border-dashed border-gray-600 rounded-lg text-gray-400 hover:border-green-400 hover:text-green-400 transition-all duration-200 flex items-center justify-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Add a task
+            </button>
+            <button
+              onClick={recording ? stopRecording : startRecording}
+              disabled={transcribeBusy}
+              className={`p-2 rounded-lg border text-white ${recording ? 'bg-red-600 border-red-700 hover:bg-red-500' : 'bg-indigo-600 border-indigo-700 hover:bg-indigo-500'} disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2`}
+              title={recording ? 'Stop and transcribe' : 'Record voice note'}
+            >
+              {recording ? <Square className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+              <span className="text-xs">{recording ? 'Stop' : (transcribeBusy ? 'Transcribing…' : 'Voice')}</span>
+            </button>
+          </div>
         )}
       </div>
 
