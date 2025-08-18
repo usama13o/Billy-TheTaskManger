@@ -75,6 +75,11 @@ export const BrainDump: React.FC<BrainDumpProps> = ({
       mr.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunksRef.current.push(e.data); };
       mr.onstop = async () => {
         const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        if (blob.size > 25 * 1024 * 1024) {
+          setIsAdding(true);
+          setNewTaskTitle('Voice note too long for transcription. Please try a shorter note.');
+          return;
+        }
         setTranscribeBusy(true);
         try {
           const text = await transcribeAudio(blob, 'whisper-1');
