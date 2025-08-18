@@ -252,6 +252,15 @@ export const MobileBrainDump: React.FC<MobileBrainDumpProps> = ({
           </div>
         )}
       </div>
+
+      {transcribeBusy && (
+        <div className="fixed bottom-20 left-0 right-0 z-50 flex justify-center pointer-events-none">
+          <div className="pointer-events-auto flex items-center gap-3 px-4 py-2 rounded-full bg-gray-800/90 border border-gray-700 text-gray-100 shadow-lg">
+            <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            <span className="text-xs">Transcribing and adding tasks…</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
